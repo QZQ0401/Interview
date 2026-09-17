@@ -1,0 +1,4 @@
+# 秋招 Tracker V3 - Supabase Edge Function 配置
+
+[functions.send-reminders]
+verify_jwt = false

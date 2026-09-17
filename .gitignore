@@ -1,0 +1,4 @@
+# 本地环境变量和密钥绝对不要提交到 GitHub
+.env
+.env.*
+supabase/functions/.env

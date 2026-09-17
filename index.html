@@ -3,127 +3,204 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="秋招 Tracker V2：投递管理、日历提醒、面试题库、复盘、数据分析与跨设备同步。" />
-  <title>秋招 Tracker V2</title>
+  <meta name="description" content="秋招 Tracker V3：投递、面试、日历、复盘、自动云同步和邮件提醒。" />
+  <title>秋招 Tracker V3</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand-wrap">
-        <div class="brand-icon">🍂</div>
-        <div>
-          <h1>秋招 Tracker <span class="version-tag">V2</span></h1>
-          <p>投递 · 日历 · 面试题库 · 复盘 · 云同步</p>
+  <!-- 登录页 -->
+  <section class="auth-screen" id="authScreen">
+    <div class="auth-card">
+      <div class="auth-logo">🍂</div>
+      <div class="eyebrow">AUTUMN RECRUITMENT</div>
+      <h1>秋招 Tracker <span>V3</span></h1>
+      <p class="auth-subtitle">登录后自动同步你的投递、日历和面试复盘。</p>
+
+      <div class="config-error hidden" id="configError">
+        <strong>还差一步前端配置</strong>
+        <p>请先在仓库的 <code>config.js</code> 中填入 Supabase Project URL 和 Publishable key，再重新部署。</p>
+      </div>
+
+      <form id="authForm" class="auth-form">
+        <label>邮箱
+          <input class="field" id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
+        </label>
+        <label>密码
+          <input class="field" id="authPassword" type="password" autocomplete="current-password" required minlength="6" />
+        </label>
+        <button class="btn btn-primary btn-large" id="loginBtn" type="submit">登录</button>
+      </form>
+
+      <div class="auth-actions">
+        <button class="text-btn" id="registerBtn" type="button">第一次使用？注册账号</button>
+        <button class="text-btn" id="forgotBtn" type="button">忘记密码</button>
+      </div>
+
+      <div class="auth-message" id="authMessage"></div>
+    </div>
+  </section>
+
+  <!-- 主应用 -->
+  <div class="app hidden" id="app">
+    <div class="sync-error-banner hidden" id="syncErrorBanner">
+      <div>
+        <strong>云同步暂时失败</strong>
+        <span id="syncErrorText">本地数据仍然安全保存，恢复网络后会自动重试。</span>
+      </div>
+      <button class="btn btn-small" id="retrySyncBtn">立即重试</button>
+    </div>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand-icon">🍂</div>
+          <div>
+            <h1>秋招 Tracker <span class="version-tag">V3</span></h1>
+            <p>投递 · 日历 · 面试题库 · 自动云同步 · 邮件提醒</p>
+          </div>
         </div>
-      </div>
-      <div class="top-actions">
-        <div class="sync-chip" id="syncChip"><span class="sync-dot"></span><span id="syncChipText">仅本地</span></div>
-        <button class="btn" id="backupBtn">备份</button>
-        <button class="btn" id="cloudBtn">云同步</button>
-        <button class="btn btn-primary" id="quickAddBtn">＋ 新增投递</button>
-      </div>
-    </header>
 
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-view="dashboard">数据看板</button>
-      <button class="tab" data-view="applications">投递管理</button>
-      <button class="tab" data-view="calendar">日历提醒</button>
-      <button class="tab" data-view="questions">面试题库 / 复盘</button>
-    </nav>
-
-    <main>
-      <section class="view active" id="view-dashboard">
-        <div class="stats-grid" id="dashboardStats"></div>
-        <div class="dashboard-grid">
-          <section class="panel wide">
-            <div class="panel-head"><div><h2>秋招进度</h2><p>状态分布与招聘漏斗</p></div></div>
-            <div class="overview-grid">
-              <div class="donut-wrap">
-                <div class="donut" id="statusDonut"><div class="donut-center"><strong id="donutTotal">0</strong><span>总投递</span></div></div>
-                <div class="legend" id="statusLegend"></div>
-              </div>
-              <div><h3 class="section-title">招聘漏斗</h3><div class="progress-list" id="funnelList"></div></div>
+        <div class="top-actions">
+          <div class="sync-card" id="syncCard">
+            <span class="sync-dot"></span>
+            <div>
+              <strong id="syncStateText">准备同步</strong>
+              <small id="lastSyncText">尚未同步</small>
             </div>
-          </section>
-          <section class="panel">
-            <div class="panel-head"><div><h2>公司优先级</h2><p>重点关注公司分布</p></div></div>
-            <div class="bar-list" id="priorityChart"></div>
-          </section>
-          <section class="panel">
-            <div class="panel-head"><div><h2>投递渠道</h2><p>各渠道 Offer 转化</p></div></div>
-            <div class="bar-list" id="channelChart"></div>
-          </section>
-          <section class="panel wide">
-            <div class="panel-head"><div><h2>最近 6 个月投递趋势</h2><p>按月份统计投递数量</p></div></div>
-            <div class="trend-chart" id="trendChart"></div>
-          </section>
-          <section class="panel">
-            <div class="panel-head"><div><h2>未来 7 天</h2><p>即将到期的事项</p></div></div>
-            <div class="mini-list" id="dashboardUpcoming"></div>
-          </section>
-          <section class="panel">
-            <div class="panel-head"><div><h2>高频主题</h2><p>从题库标签自动统计</p></div></div>
-            <div class="tag-cloud" id="topicCloud"></div>
-          </section>
+          </div>
+          <button class="btn" id="backupBtn">备份</button>
+          <button class="btn btn-primary" id="quickAddBtn">＋ 新增投递</button>
+          <button class="avatar-btn" id="accountBtn" title="账号设置">Q</button>
         </div>
-      </section>
+      </header>
 
-      <section class="view" id="view-applications">
-        <section class="panel">
-          <div class="panel-head head-wrap">
-            <div><h2>投递管理</h2><p>记录公司、岗位、优先级、状态与完整招聘流程</p></div>
-            <button class="btn btn-primary" id="addApplicationBtn">＋ 新增投递</button>
+      <div class="account-popover hidden" id="accountPopover">
+        <strong id="accountEmail">—</strong>
+        <span>云端账号</span>
+        <button class="btn" id="manualSyncBtn">立即同步</button>
+        <button class="btn btn-danger" id="signOutBtn">退出登录</button>
+      </div>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-view="dashboard">数据看板</button>
+        <button class="tab" data-view="applications">投递管理</button>
+        <button class="tab" data-view="calendar">日历提醒</button>
+        <button class="tab" data-view="questions">面试题库 / 复盘</button>
+      </nav>
+
+      <main>
+        <section class="view active" id="view-dashboard">
+          <div class="stats-grid" id="dashboardStats"></div>
+
+          <div class="dashboard-grid">
+            <section class="panel wide">
+              <div class="panel-head">
+                <div><h2>秋招进度</h2><p>状态分布与招聘漏斗</p></div>
+              </div>
+              <div class="overview-grid">
+                <div class="donut-wrap">
+                  <div class="donut" id="statusDonut">
+                    <div class="donut-center"><strong id="donutTotal">0</strong><span>总投递</span></div>
+                  </div>
+                  <div class="legend" id="statusLegend"></div>
+                </div>
+                <div>
+                  <h3 class="section-title">招聘漏斗</h3>
+                  <div class="progress-list" id="funnelList"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head"><div><h2>公司优先级</h2><p>重点关注公司分布</p></div></div>
+              <div class="bar-list" id="priorityChart"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head"><div><h2>未来 7 天</h2><p>面试与截止事项</p></div></div>
+              <div class="mini-list" id="dashboardUpcoming"></div>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-head"><div><h2>最近 6 个月投递趋势</h2><p>按投递月份统计</p></div></div>
+              <div class="trend-chart" id="trendChart"></div>
+            </section>
           </div>
-          <div class="toolbar app-toolbar">
-            <div class="search-wrap"><span>⌕</span><input id="applicationSearch" class="field" placeholder="搜索公司、岗位、地点、渠道..." /></div>
-            <select id="applicationStatusFilter" class="field-select"></select>
-            <select id="applicationPriorityFilter" class="field-select"></select>
-            <select id="applicationLocationFilter" class="field-select"></select>
-          </div>
-          <div class="table-wrap" id="applicationsTable"></div>
         </section>
-      </section>
 
-      <section class="view" id="view-calendar">
-        <div class="calendar-layout">
+        <section class="view" id="view-applications">
           <section class="panel">
             <div class="panel-head head-wrap">
-              <div><h2>日历提醒</h2><p>笔试截止、面试、HR 沟通、Offer 截止等事项</p></div>
-              <div class="button-row">
-                <button class="btn" id="notifyBtn">浏览器提醒</button>
-                <button class="btn" id="exportIcsBtn">导出 .ics</button>
-                <button class="btn btn-primary" id="addReminderBtn">＋ 新增提醒</button>
-              </div>
+              <div><h2>投递管理</h2><p>公司、岗位、优先级、状态与完整招聘流程</p></div>
+              <button class="btn btn-primary" id="addApplicationBtn">＋ 新增投递</button>
             </div>
-            <div class="calendar-toolbar">
-              <button class="icon-btn" id="prevMonthBtn">←</button>
-              <button class="btn" id="todayBtn">今天</button>
-              <h3 id="calendarTitle"></h3>
-              <button class="icon-btn" id="nextMonthBtn">→</button>
-            </div>
-            <div class="calendar-weekdays"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>
-            <div class="calendar-grid" id="calendarGrid"></div>
-          </section>
-          <aside class="panel calendar-side"><h3 class="section-title">近期事项</h3><div class="mini-list" id="upcomingReminderList"></div></aside>
-        </div>
-      </section>
 
-      <section class="view" id="view-questions">
-        <section class="panel">
-          <div class="panel-head head-wrap">
-            <div><h2>面试题库 / 复盘</h2><p>把面试题、答案思路和复盘沉淀成自己的知识库</p></div>
-            <button class="btn btn-primary" id="addQuestionBtn">＋ 新增记录</button>
-          </div>
-          <div class="toolbar question-toolbar">
-            <div class="search-wrap"><span>⌕</span><input id="questionSearch" class="field" placeholder="搜索题目、答案、复盘、标签..." /></div>
-            <select id="questionCategoryFilter" class="field-select"></select>
-            <select id="questionCompanyFilter" class="field-select"></select>
-          </div>
-          <div class="question-grid" id="questionGrid"></div>
+            <div class="toolbar app-toolbar">
+              <div class="search-wrap"><span>⌕</span><input id="applicationSearch" class="field" placeholder="搜索公司、岗位、地点、渠道..." /></div>
+              <select id="applicationStatusFilter" class="field-select"></select>
+              <select id="applicationPriorityFilter" class="field-select"></select>
+              <select id="applicationLocationFilter" class="field-select"></select>
+            </div>
+
+            <div class="table-wrap" id="applicationsTable"></div>
+          </section>
         </section>
-      </section>
-    </main>
+
+        <section class="view" id="view-calendar">
+          <div class="calendar-layout">
+            <section class="panel">
+              <div class="panel-head head-wrap">
+                <div><h2>日历提醒</h2><p>面试、笔试截止、Offer 截止；支持浏览器与邮件提醒</p></div>
+                <div class="button-row">
+                  <button class="btn" id="notifyBtn">浏览器提醒</button>
+                  <button class="btn" id="exportIcsBtn">导出 .ics</button>
+                  <button class="btn btn-primary" id="addReminderBtn">＋ 新增提醒</button>
+                </div>
+              </div>
+
+              <div class="email-info">
+                <span>✉️</span>
+                <div>
+                  <strong>邮件提醒由云端后台执行</strong>
+                  <p>即使网页关闭，只要 Supabase Cron 和邮件服务已配置，仍会在设定时间发送。</p>
+                </div>
+              </div>
+
+              <div class="calendar-toolbar">
+                <button class="icon-btn" id="prevMonthBtn">←</button>
+                <button class="btn" id="todayBtn">今天</button>
+                <h3 id="calendarTitle"></h3>
+                <button class="icon-btn" id="nextMonthBtn">→</button>
+              </div>
+              <div class="calendar-weekdays"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>
+              <div class="calendar-grid" id="calendarGrid"></div>
+            </section>
+
+            <aside class="panel calendar-side">
+              <h3 class="section-title">近期事项</h3>
+              <div class="mini-list" id="upcomingReminderList"></div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="view-questions">
+          <section class="panel">
+            <div class="panel-head head-wrap">
+              <div><h2>面试题库 / 复盘</h2><p>把面试问题和经验沉淀成自己的知识库</p></div>
+              <button class="btn btn-primary" id="addQuestionBtn">＋ 新增记录</button>
+            </div>
+
+            <div class="toolbar question-toolbar">
+              <div class="search-wrap"><span>⌕</span><input id="questionSearch" class="field" placeholder="搜索题目、答案、复盘、标签..." /></div>
+              <select id="questionCategoryFilter" class="field-select"></select>
+              <select id="questionCompanyFilter" class="field-select"></select>
+            </div>
+
+            <div class="question-grid" id="questionGrid"></div>
+          </section>
+        </section>
+      </main>
+    </div>
   </div>
 
   <!-- 投递弹窗 -->
@@ -170,11 +247,29 @@
     <div class="modal-header"><h2 id="reminderModalTitle">新增提醒</h2><button class="icon-btn" data-close="reminderModal">✕</button></div>
     <div class="modal-body"><form id="reminderForm" class="form-grid">
       <input type="hidden" id="reminderId" />
-      <label class="full">事项 *<input class="field" id="reminderTitle" required /></label>
+      <label class="full">事项 *<input class="field" id="reminderTitle" required placeholder="字节跳动二面 / Offer 接受截止" /></label>
       <label>日期 *<input class="field" id="reminderDate" type="date" required /></label>
-      <label>时间<input class="field" id="reminderTime" type="time" /></label>
+      <label>时间 *<input class="field" id="reminderTime" type="time" required /></label>
       <label class="full">关联投递<select class="field-select" id="reminderApplication"></select></label>
-      <label class="full">备注<textarea class="field-textarea" id="reminderNote"></textarea></label>
+
+      <label class="checkbox-line full">
+        <input id="reminderEmailEnabled" type="checkbox" />
+        <span><strong>启用邮件提醒</strong><small>发送到当前 Supabase 登录邮箱</small></span>
+      </label>
+
+      <label class="full" id="emailLeadGroup">提前多久发邮件
+        <select class="field-select" id="reminderEmailLead">
+          <option value="0">到点提醒</option>
+          <option value="30">提前 30 分钟</option>
+          <option value="60">提前 1 小时</option>
+          <option value="180">提前 3 小时</option>
+          <option value="1440" selected>提前 1 天</option>
+          <option value="4320">提前 3 天</option>
+          <option value="10080">提前 7 天</option>
+        </select>
+      </label>
+
+      <label class="full">备注<textarea class="field-textarea" id="reminderNote" placeholder="会议链接、准备事项、截止要求等"></textarea></label>
     </form></div>
     <div class="modal-footer"><button class="btn" data-close="reminderModal">取消</button><button class="btn btn-primary" id="saveReminderBtn">保存</button></div>
   </div></div>
@@ -196,28 +291,6 @@
     <div class="modal-footer"><button class="btn" data-close="questionModal">取消</button><button class="btn btn-primary" id="saveQuestionBtn">保存</button></div>
   </div></div>
 
-  <!-- 云同步弹窗 -->
-  <div class="modal-backdrop" id="cloudModal"><div class="modal">
-    <div class="modal-header"><h2>Supabase 云同步</h2><button class="icon-btn" data-close="cloudModal">✕</button></div>
-    <div class="modal-body">
-      <div class="callout"><strong>GitHub Pages 托管网页，Supabase 保存私人数据。</strong><p>另一台电脑打开同一网页，填相同配置并登录同一账号即可同步。</p></div>
-      <div class="form-grid">
-        <label class="full">Supabase Project URL<input class="field" id="supabaseUrl" placeholder="https://xxxx.supabase.co" /></label>
-        <label class="full">Supabase anon / publishable key<input class="field" id="supabaseKey" placeholder="eyJ..." /></label>
-        <div class="full"><button class="btn" id="saveCloudConfigBtn">保存并初始化</button></div>
-      </div>
-      <div class="divider"></div>
-      <div class="form-grid">
-        <label>邮箱<input class="field" id="cloudEmail" type="email" /></label>
-        <label>密码<input class="field" id="cloudPassword" type="password" /></label>
-        <div class="full button-row"><button class="btn btn-primary" id="signInBtn">登录</button><button class="btn" id="signUpBtn">注册</button><button class="btn btn-danger hidden" id="signOutBtn">退出</button></div>
-      </div>
-      <div class="cloud-status" id="cloudStatusCard"><strong>尚未连接</strong><span>先填写 Supabase 配置并登录。</span></div>
-      <div class="button-row cloud-actions"><button class="btn" id="smartSyncBtn">智能同步</button><button class="btn" id="pushCloudBtn">本地 → 云端</button><button class="btn" id="pullCloudBtn">云端 → 本地</button></div>
-      <div class="cloud-help"><strong>首次使用：</strong>在 Supabase 新建项目 → 执行项目里的 <code>supabase.sql</code> → 填 Project URL 和 anon/publishable key → 注册登录。<br><span class="muted">不要填写 service_role key。</span></div>
-    </div>
-  </div></div>
-
   <!-- 备份弹窗 -->
   <div class="modal-backdrop" id="backupModal"><div class="modal small">
     <div class="modal-header"><h2>备份与导入</h2><button class="icon-btn" data-close="backupModal">✕</button></div>
@@ -226,7 +299,7 @@
         <button class="action-card" id="exportJsonBtn"><strong>导出 JSON</strong><span>完整备份全部数据</span></button>
         <button class="action-card" id="exportCsvBtn"><strong>导出投递 CSV</strong><span>用于 Excel / Numbers</span></button>
         <button class="action-card" id="importBtn"><strong>导入 JSON</strong><span>恢复之前的备份</span></button>
-        <button class="action-card" id="clearAllBtn"><strong>清空本地数据</strong><span>不会删除云端数据</span></button>
+        <button class="action-card" id="pullCloudBtn"><strong>强制拉取云端</strong><span>云端数据覆盖本机</span></button>
       </div>
       <input type="file" class="hidden" id="importFile" accept=".json,application/json" />
     </div>
@@ -239,6 +312,8 @@
   </aside></div>
 
   <div class="toast" id="toast"></div>
-  <script src="./app.js"></script>
+
+  <script src="./config.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
