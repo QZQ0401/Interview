@@ -186,9 +186,15 @@
         <section class="view" id="view-questions">
           <section class="panel">
             <div class="panel-head head-wrap">
-              <div><h2>面试题库 / 复盘</h2><p>把面试问题和经验沉淀成自己的知识库</p></div>
-              <button class="btn btn-primary" id="addQuestionBtn">＋ 新增记录</button>
+              <div><h2>面试题库 / 复盘</h2><p>机器人题库 + 简历深挖 + 实际面试复盘</p></div>
+              <div class="question-head-actions">
+                <button class="btn" id="importBuiltinQuestionBankBtn">导入机器人题库</button>
+                <button class="btn" id="importQuestionBankBtn">导入题库 JSON</button>
+                <button class="btn btn-primary" id="addQuestionBtn">＋ 新增记录</button>
+              </div>
             </div>
+
+            <div class="question-module-grid" id="questionModuleGrid"></div>
 
             <div class="toolbar question-toolbar">
               <div class="search-wrap"><span>⌕</span><input id="questionSearch" class="field" placeholder="搜索题目、答案、复盘、标签..." /></div>
@@ -197,6 +203,7 @@
             </div>
 
             <div class="question-grid" id="questionGrid"></div>
+            <input type="file" class="hidden" id="questionBankFile" accept=".json,application/json" />
           </section>
         </section>
       </main>

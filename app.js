@@ -21,8 +21,18 @@ const PRIORITY_OPTIONS = [
 ];
 
 const QUESTION_CATEGORIES = [
-  "Java / JVM", "数据库", "计算机网络", "操作系统", "算法",
-  "系统设计", "项目经历", "行为面 / HR", "其他"
+  "简历 / 项目深挖",
+  "机器人运动学与标定",
+  "机器人动力学与控制",
+  "运动规划与轨迹优化",
+  "ROS2 / DDS",
+  "MoveIt2 / OMPL / STOMP",
+  "ros2_control / 实时控制",
+  "C++ / 多线程与并发",
+  "数学 / 优化 / 参数辨识",
+  "机器人系统设计 / 工程化",
+  "算法", "操作系统", "计算机网络", "系统设计",
+  "Java / JVM", "数据库", "项目经历", "行为面 / HR", "其他"
 ];
 
 const STATUS_MAP = Object.fromEntries(STATUS_OPTIONS);
@@ -402,6 +412,8 @@ function normalizeQuestion(item = {}) {
     answer: item.answer || "",
     reflection: item.reflection || "",
     tags: Array.isArray(item.tags) ? item.tags : [],
+    sourceTitle: item.sourceTitle || "",
+    sourceUrl: item.sourceUrl || "",
     createdAt: item.createdAt || now,
     updatedAt: item.updatedAt || now
   };
@@ -829,8 +841,14 @@ function bindEvents() {
 
   $("#addQuestionBtn").addEventListener("click", openAddQuestionModal);
   $("#saveQuestionBtn").addEventListener("click", saveQuestionFromForm);
+  $("#importBuiltinQuestionBankBtn").addEventListener("click", importBuiltinQuestionBank);
+  $("#importQuestionBankBtn").addEventListener("click", () => $("#questionBankFile").click());
+  $("#questionBankFile").addEventListener("change", importQuestionBankJson);
   $("#questionSearch").addEventListener("input", renderQuestions);
-  $("#questionCategoryFilter").addEventListener("change", renderQuestions);
+  $("#questionCategoryFilter").addEventListener("change", () => {
+    renderQuestionModules();
+    renderQuestions();
+  });
   $("#questionCompanyFilter").addEventListener("change", renderQuestions);
 
   $("#backupBtn").addEventListener("click", () => openModal("backupModal"));
@@ -905,6 +923,7 @@ function renderAll() {
   renderReminderApplicationOptions();
   renderCalendar();
   renderQuestionFilters();
+  renderQuestionModules();
   renderQuestions();
   refreshDrawerIfOpen();
 }
@@ -1709,6 +1728,38 @@ function renderQuestionFilters() {
   }
 }
 
+function renderQuestionModules() {
+  const root = $("#questionModuleGrid");
+  if (!root) return;
+
+  const current = $("#questionCategoryFilter").value;
+  const modules = QUESTION_CATEGORIES
+    .map(category => ({
+      category,
+      count: data.questions.filter(item => item.category === category).length
+    }))
+    .filter(item => item.count > 0);
+
+  root.innerHTML = [
+    `<button class="question-module-chip ${current === "" ? "active" : ""}" data-question-module="">
+       <span>全部</span><strong>${data.questions.length}</strong>
+     </button>`,
+    ...modules.map(item => `
+      <button class="question-module-chip ${current === item.category ? "active" : ""}"
+              data-question-module="${escapeHtml(item.category)}">
+        <span>${escapeHtml(item.category)}</span><strong>${item.count}</strong>
+      </button>`)
+  ].join("");
+
+  root.querySelectorAll("[data-question-module]").forEach(button => {
+    button.addEventListener("click", () => {
+      $("#questionCategoryFilter").value = button.dataset.questionModule || "";
+      renderQuestionModules();
+      renderQuestions();
+    });
+  });
+}
+
 function getFilteredQuestions() {
   const keyword = $("#questionSearch").value.trim().toLowerCase();
   const category = $("#questionCategoryFilter").value;
@@ -1717,7 +1768,7 @@ function getFilteredQuestions() {
   return sortByUpdatedAt(data.questions).filter(item => {
     const text = [
       item.text, item.answer, item.reflection, item.category,
-      item.stage, ...item.tags
+      item.stage, item.sourceTitle, ...item.tags
     ].join(" ").toLowerCase();
 
     return (
@@ -1756,6 +1807,7 @@ function renderQuestions() {
         </div>
         ${item.answer ? `<div class="question-section"><strong>答案思路</strong><p>${escapeHtml(item.answer)}</p></div>` : ""}
         ${item.reflection ? `<div class="question-section"><strong>我的复盘</strong><p>${escapeHtml(item.reflection)}</p></div>` : ""}
+        ${item.sourceTitle ? `<div class="question-source">延伸参考：${escapeHtml(item.sourceTitle)}</div>` : ""}
         ${item.tags.length ? `<div class="question-tags">${item.tags.map(tag => `<span class="question-tag">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
         <div class="question-actions">
           <button class="btn btn-sm" onclick="editQuestion('${item.id}')">编辑</button>
@@ -1835,9 +1887,89 @@ function saveQuestionFromForm() {
 
 function deleteQuestion(id) {
   if (!confirm("确定删除这条面试记录吗？")) return;
-
   data.questions = data.questions.filter(i => i.id !== id);
   saveData();
+}
+
+function mergeQuestionBankQuestions(rawQuestions, label = "题库") {
+  if (!Array.isArray(rawQuestions)) {
+    throw new Error("题库 JSON 中没有 questions 数组");
+  }
+
+  const existingIds = new Set(data.questions.map(item => item.id));
+  const existingText = new Set(
+    data.questions.map(item =>
+      `${item.category}::${String(item.text || "").trim().toLowerCase()}`
+    )
+  );
+
+  let added = 0;
+  let skipped = 0;
+  const now = new Date().toISOString();
+
+  for (const raw of rawQuestions) {
+    const item = normalizeQuestion(raw);
+    const key = `${item.category}::${String(item.text || "").trim().toLowerCase()}`;
+
+    if (!item.text.trim() || existingIds.has(item.id) || existingText.has(key)) {
+      skipped += 1;
+      continue;
+    }
+
+    item.companyApplicationId = "";
+    item.updatedAt = now;
+
+    data.questions.push(item);
+    existingIds.add(item.id);
+    existingText.add(key);
+    added += 1;
+  }
+
+  if (added) saveData();
+  else {
+    renderQuestionModules();
+    renderQuestions();
+  }
+
+  showToast(`${label}：新增 ${added} 题，跳过 ${skipped} 题`);
+  return { added, skipped };
+}
+
+async function importBuiltinQuestionBank() {
+  try {
+    const response = await fetch("./data/robotics-question-bank.json", {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const parsed = await response.json();
+    const list = Array.isArray(parsed) ? parsed : parsed.questions;
+    mergeQuestionBankQuestions(list, parsed.name || "机器人面试题库");
+  } catch (error) {
+    alert(
+      `导入内置机器人题库失败：${error.message}\n\n` +
+      "如果你是直接双击 index.html 本地打开，请部署到 GitHub Pages 后再试；" +
+      "也可以点击“导入题库 JSON”手动选择 data/robotics-question-bank.json。"
+    );
+  }
+}
+
+async function importQuestionBankJson(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const parsed = JSON.parse(await file.text());
+    const list = Array.isArray(parsed) ? parsed : parsed.questions;
+    mergeQuestionBankQuestions(list, parsed.name || file.name);
+  } catch (error) {
+    alert(`导入题库失败：${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
 }
 
 /* ========== 备份与恢复 ========== */
