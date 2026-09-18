@@ -298,6 +298,89 @@
     <div class="modal-footer"><button class="btn" data-close="questionModal">取消</button><button class="btn btn-primary" id="saveQuestionBtn">保存</button></div>
   </div></div>
 
+  <!-- V3.2 题库详情弹窗 -->
+  <div class="modal-backdrop question-detail-backdrop" id="questionDetailModal">
+    <div class="modal question-detail-modal">
+      <div class="question-detail-header">
+        <div class="question-detail-header-copy">
+          <div class="question-detail-eyebrow" id="questionDetailEyebrow">面试题</div>
+          <h2 id="questionDetailTitle">题目详情</h2>
+          <div class="question-detail-header-meta" id="questionDetailHeaderMeta"></div>
+        </div>
+        <button class="icon-btn question-detail-close" data-close="questionDetailModal" aria-label="关闭题目详情">✕</button>
+      </div>
+
+      <div class="question-detail-body">
+        <div id="questionDetailView"></div>
+
+        <form id="questionDetailEditForm" class="question-detail-edit hidden">
+          <div class="question-edit-grid">
+            <label>分类
+              <select class="field-select" id="questionDetailCategory"></select>
+            </label>
+            <label>难度
+              <select class="field-select" id="questionDetailDifficulty">
+                <option value="easy">基础</option>
+                <option value="medium">中等</option>
+                <option value="hard">困难</option>
+              </select>
+            </label>
+            <label>来源公司
+              <select class="field-select" id="questionDetailCompany"></select>
+            </label>
+            <label>来源 / 轮次
+              <input class="field" id="questionDetailStage" placeholder="JD 定制 / 一面 / 二面..." />
+            </label>
+          </div>
+
+          <label class="question-edit-section">
+            <span class="question-edit-label">题目与追问 *</span>
+            <textarea class="field-textarea question-edit-textarea question-edit-question"
+              id="questionDetailTextInput" required></textarea>
+            <small>推荐保持“主问题 → 追问 1 → 追问 2 → 追问 3”的结构。</small>
+          </label>
+
+          <label class="question-edit-section">
+            <span class="question-edit-label">参考答案 / 回答思路</span>
+            <textarea class="field-textarea question-edit-textarea"
+              id="questionDetailAnswerInput"></textarea>
+          </label>
+
+          <label class="question-edit-section">
+            <span class="question-edit-label">我的复盘</span>
+            <textarea class="field-textarea question-edit-textarea"
+              id="questionDetailReflectionInput"
+              placeholder="面试后记录：我的回答、遗漏点、面试官反馈、下一次怎么答..."></textarea>
+          </label>
+
+          <div class="question-edit-grid">
+            <label>标签
+              <input class="field" id="questionDetailTagsInput" placeholder="A*, Hybrid A*, 高频（逗号分隔）" />
+            </label>
+            <label>参考资料名称
+              <input class="field" id="questionDetailSourceTitleInput" placeholder="Nav2 Smac Planner" />
+            </label>
+            <label class="question-edit-full">参考资料链接
+              <input class="field" type="url" id="questionDetailSourceUrlInput" placeholder="https://..." />
+            </label>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer question-detail-footer" id="questionDetailViewFooter">
+        <button class="btn btn-danger" id="questionDetailDeleteBtn">删除题目</button>
+        <span class="question-detail-footer-spacer"></span>
+        <button class="btn btn-primary" id="questionDetailEditBtn">编辑题目</button>
+      </div>
+
+      <div class="modal-footer question-detail-footer hidden" id="questionDetailEditFooter">
+        <button class="btn" id="questionDetailCancelEditBtn">取消编辑</button>
+        <span class="question-detail-footer-spacer"></span>
+        <button class="btn btn-primary" id="questionDetailSaveBtn">保存修改</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 备份弹窗 -->
   <div class="modal-backdrop" id="backupModal"><div class="modal small">
     <div class="modal-header"><h2>备份与导入</h2><button class="icon-btn" data-close="backupModal">✕</button></div>
