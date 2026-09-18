@@ -21,6 +21,7 @@ const PRIORITY_OPTIONS = [
 ];
 
 const QUESTION_CATEGORIES = [
+  "Ros2_Code 源码专项",
   "简历 / 项目深挖",
   "机器人运动学与标定",
   "机器人动力学与控制",
