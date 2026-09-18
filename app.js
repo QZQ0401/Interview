@@ -59,6 +59,9 @@ let currentUser = null;
 let data = createEmptyData();
 let activeApplicationId = null;
 
+let activeQuestionDetailId = null;
+let questionDetailEditMode = false;
+
 let calendarCursor = new Date();
 calendarCursor.setDate(1);
 
@@ -845,6 +848,11 @@ function bindEvents() {
   $("#importBuiltinQuestionBankBtn").addEventListener("click", importBuiltinQuestionBank);
   $("#importQuestionBankBtn").addEventListener("click", () => $("#questionBankFile").click());
   $("#questionBankFile").addEventListener("change", importQuestionBankJson);
+
+  $("#questionDetailEditBtn").addEventListener("click", () => setQuestionDetailEditMode(true));
+  $("#questionDetailCancelEditBtn").addEventListener("click", () => setQuestionDetailEditMode(false));
+  $("#questionDetailSaveBtn").addEventListener("click", saveQuestionDetailEdits);
+  $("#questionDetailDeleteBtn").addEventListener("click", deleteQuestionFromDetail);
   $("#questionSearch").addEventListener("input", renderQuestions);
   $("#questionCategoryFilter").addEventListener("change", () => {
     renderQuestionModules();
@@ -926,6 +934,7 @@ function renderAll() {
   renderQuestionFilters();
   renderQuestionModules();
   renderQuestions();
+  refreshQuestionDetailIfOpen();
   refreshDrawerIfOpen();
 }
 
@@ -1780,13 +1789,93 @@ function getFilteredQuestions() {
   });
 }
 
+function getQuestionHeadline(text = "") {
+  const first = String(text)
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .find(Boolean) || "未命名题目";
+  return first.replace(/^主问题\s*[:：]\s*/u, "").trim() || "未命名题目";
+}
+
+function getQuestionLines(text = "") {
+  return String(text)
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+function stripQuestionLinePrefix(line = "") {
+  return String(line)
+    .replace(/^主问题\s*[:：]\s*/u, "")
+    .replace(/^追问\s*\d*\s*(?:（[^）]*）|\([^)]*\))?\s*[:：]\s*/u, "")
+    .trim();
+}
+
+function getQuestionFollowupCount(text = "") {
+  const lines = getQuestionLines(text);
+  const explicit = lines.filter(line => /^追问/u.test(line)).length;
+  return explicit || Math.max(0, lines.length - 1);
+}
+
+function getQuestionPreview(text = "") {
+  return getQuestionLines(text)
+    .slice(1, 3)
+    .map(stripQuestionLinePrefix)
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function safeExternalUrl(value = "") {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function renderQuestionPromptBlocks(text = "") {
+  const lines = getQuestionLines(text);
+  if (!lines.length) {
+    return `<div class="question-detail-empty">暂无题目内容</div>`;
+  }
+
+  return lines.map((line, index) => {
+    const match = line.match(/^(主问题|追问\s*\d*(?:（[^）]*）|\([^)]*\))?)\s*[:：]\s*(.*)$/u);
+    const label = match?.[1] || (index === 0 ? "主问题" : `追问 ${index}`);
+    const body = match?.[2] || line;
+
+    if (index === 0) {
+      return `
+        <div class="question-detail-main-prompt">
+          <span>${escapeHtml(label)}</span>
+          <p>${escapeHtml(body)}</p>
+        </div>`;
+    }
+
+    return `
+      <div class="question-detail-followup">
+        <span>${escapeHtml(label)}</span>
+        <p>${escapeHtml(body)}</p>
+      </div>`;
+  }).join("");
+}
+
+function renderQuestionTextContent(value = "", emptyText = "暂无内容") {
+  if (!String(value || "").trim()) {
+    return `<div class="question-detail-empty">${escapeHtml(emptyText)}</div>`;
+  }
+  return `<div class="question-detail-prose">${escapeHtml(value).replace(/\n/g, "<br>")}</div>`;
+}
+
 function renderQuestions() {
   const rows = getFilteredQuestions();
   const difficulty = { easy: "基础", medium: "中等", hard: "困难" };
 
   if (!rows.length) {
     $("#questionGrid").innerHTML = `
-      <div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-state">
         <div class="empty-emoji">🧠</div>
         <div class="empty-title">${data.questions.length ? "没有符合条件的记录" : "题库还是空的"}</div>
       </div>`;
@@ -1795,27 +1884,281 @@ function renderQuestions() {
 
   $("#questionGrid").innerHTML = rows.map(item => {
     const app = getApplicationById(item.companyApplicationId);
+    const headline = getQuestionHeadline(item.text);
+    const preview = getQuestionPreview(item.text);
+    const followups = getQuestionFollowupCount(item.text);
+    const tags = item.tags.slice(0, 6);
 
     return `
-      <article class="question-card">
-        <div class="question-top">
-          <div>
+      <article
+        class="question-card question-card-clickable"
+        data-question-id="${escapeHtml(item.id)}"
+        tabindex="0"
+        role="button"
+        aria-label="打开题目：${escapeHtml(headline)}"
+      >
+        <div class="question-card-content">
+          <div class="question-card-topline">
             <div class="question-category">${escapeHtml(item.category)}</div>
-            <h3 class="question-title">${escapeHtml(item.text)}</h3>
-            <div class="company-meta">${app ? `${escapeHtml(app.company)} · ${escapeHtml(app.role)}` : "通用题库"}${item.stage ? ` · ${escapeHtml(item.stage)}` : ""}</div>
+            <span class="difficulty-badge difficulty-${item.difficulty}">
+              ${difficulty[item.difficulty] || "中等"}
+            </span>
           </div>
-          <span class="difficulty-badge difficulty-${item.difficulty}">${difficulty[item.difficulty]}</span>
+
+          <h3 class="question-title">${escapeHtml(headline)}</h3>
+          ${preview ? `<p class="question-preview">${escapeHtml(preview)}</p>` : ""}
+
+          <div class="question-list-meta">
+            <span>${app ? `${escapeHtml(app.company)} · ${escapeHtml(app.role)}` : "通用题库"}</span>
+            ${item.stage ? `<span>${escapeHtml(item.stage)}</span>` : ""}
+            <span>${followups} 层追问</span>
+            <span>${item.answer ? "有参考答案" : "待补答案"}</span>
+            ${item.reflection ? `<span>已复盘</span>` : ""}
+          </div>
+
+          ${tags.length ? `
+            <div class="question-tags question-card-tags">
+              ${tags.map(tag => `<span class="question-tag">${escapeHtml(tag)}</span>`).join("")}
+              ${item.tags.length > tags.length ? `<span class="question-tag">+${item.tags.length - tags.length}</span>` : ""}
+            </div>` : ""}
         </div>
-        ${item.answer ? `<div class="question-section"><strong>答案思路</strong><p>${escapeHtml(item.answer)}</p></div>` : ""}
-        ${item.reflection ? `<div class="question-section"><strong>我的复盘</strong><p>${escapeHtml(item.reflection)}</p></div>` : ""}
-        ${item.sourceTitle ? `<div class="question-source">延伸参考：${escapeHtml(item.sourceTitle)}</div>` : ""}
-        ${item.tags.length ? `<div class="question-tags">${item.tags.map(tag => `<span class="question-tag">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
-        <div class="question-actions">
-          <button class="btn btn-sm" onclick="editQuestion('${item.id}')">编辑</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteQuestion('${item.id}')">删除</button>
+
+        <div class="question-card-open">
+          <span>查看详情</span>
+          <strong>→</strong>
         </div>
       </article>`;
   }).join("");
+
+  $("#questionGrid")
+    .querySelectorAll("[data-question-id]")
+    .forEach(card => {
+      const open = () => openQuestionDetail(card.dataset.questionId);
+      card.addEventListener("click", open);
+      card.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          open();
+        }
+      });
+    });
+}
+
+function openQuestionDetail(id) {
+  const item = data.questions.find(question => question.id === id);
+  if (!item) return;
+
+  activeQuestionDetailId = id;
+  questionDetailEditMode = false;
+  renderQuestionDetail();
+  openModal("questionDetailModal");
+}
+
+function refreshQuestionDetailIfOpen() {
+  const modal = $("#questionDetailModal");
+  if (!modal?.classList.contains("show") || !activeQuestionDetailId) return;
+
+  const exists = data.questions.some(item => item.id === activeQuestionDetailId);
+  if (!exists) {
+    closeModal("questionDetailModal");
+    activeQuestionDetailId = null;
+    questionDetailEditMode = false;
+    return;
+  }
+
+  // 正在编辑时，周期性同步/其它 renderAll 不覆盖尚未保存的输入。
+  if (!questionDetailEditMode) renderQuestionDetail();
+}
+
+function renderQuestionDetail() {
+  const item = data.questions.find(question => question.id === activeQuestionDetailId);
+  if (!item) return;
+
+  const app = getApplicationById(item.companyApplicationId);
+  const difficulty = { easy: "基础", medium: "中等", hard: "困难" };
+  const headline = getQuestionHeadline(item.text);
+  const sourceUrl = safeExternalUrl(item.sourceUrl);
+
+  $("#questionDetailEyebrow").textContent = item.category || "面试题";
+  $("#questionDetailTitle").textContent = headline;
+  $("#questionDetailHeaderMeta").innerHTML = `
+    <span class="difficulty-badge difficulty-${item.difficulty}">
+      ${difficulty[item.difficulty] || "中等"}
+    </span>
+    <span>${app ? `${escapeHtml(app.company)} · ${escapeHtml(app.role)}` : "通用题库"}</span>
+    ${item.stage ? `<span>${escapeHtml(item.stage)}</span>` : ""}
+    <span>更新于 ${escapeHtml(formatDateTime(item.updatedAt))}</span>
+  `;
+
+  $("#questionDetailView").innerHTML = `
+    <div class="question-detail-layout">
+      <main class="question-detail-main">
+        <section class="question-detail-section question-detail-section-prompts">
+          <div class="question-detail-section-head">
+            <div>
+              <span class="question-detail-kicker">QUESTION</span>
+              <h3>题目与追问</h3>
+            </div>
+            <span class="question-depth-badge">${getQuestionFollowupCount(item.text)} 层追问</span>
+          </div>
+          <div class="question-prompt-stack">
+            ${renderQuestionPromptBlocks(item.text)}
+          </div>
+        </section>
+
+        <section class="question-detail-section">
+          <div class="question-detail-section-head">
+            <div>
+              <span class="question-detail-kicker">ANSWER</span>
+              <h3>参考答案 / 回答思路</h3>
+            </div>
+          </div>
+          ${renderQuestionTextContent(item.answer, "这道题暂时还没有参考答案。")}
+        </section>
+
+        <section class="question-detail-section reflection-section">
+          <div class="question-detail-section-head">
+            <div>
+              <span class="question-detail-kicker">REVIEW</span>
+              <h3>我的复盘</h3>
+            </div>
+          </div>
+          ${renderQuestionTextContent(item.reflection, "还没有复盘。面试后可以在这里记录自己的回答、遗漏点和下一次改进。")}
+        </section>
+      </main>
+
+      <aside class="question-detail-sidebar">
+        <section class="question-detail-side-card">
+          <span class="question-detail-side-label">分类</span>
+          <strong>${escapeHtml(item.category || "其他")}</strong>
+        </section>
+
+        <section class="question-detail-side-card">
+          <span class="question-detail-side-label">来源</span>
+          <strong>${app ? `${escapeHtml(app.company)} · ${escapeHtml(app.role)}` : "通用题库"}</strong>
+          ${item.stage ? `<small>${escapeHtml(item.stage)}</small>` : ""}
+        </section>
+
+        <section class="question-detail-side-card">
+          <span class="question-detail-side-label">标签</span>
+          ${item.tags.length
+            ? `<div class="question-tags">${item.tags.map(tag => `<span class="question-tag">${escapeHtml(tag)}</span>`).join("")}</div>`
+            : `<small>暂无标签</small>`}
+        </section>
+
+        ${(item.sourceTitle || sourceUrl) ? `
+          <section class="question-detail-side-card">
+            <span class="question-detail-side-label">延伸参考</span>
+            ${item.sourceTitle ? `<strong>${escapeHtml(item.sourceTitle)}</strong>` : ""}
+            ${sourceUrl ? `<a class="question-source-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">打开参考资料 ↗</a>` : ""}
+          </section>` : ""}
+
+        <section class="question-detail-side-card question-detail-tip">
+          <span class="question-detail-side-label">复习建议</span>
+          <small>先口头回答主问题，再连续回答追问。最后再展开参考答案进行对照。</small>
+        </section>
+      </aside>
+    </div>
+  `;
+
+  if (!questionDetailEditMode) {
+    $("#questionDetailView").classList.remove("hidden");
+    $("#questionDetailEditForm").classList.add("hidden");
+    $("#questionDetailViewFooter").classList.remove("hidden");
+    $("#questionDetailEditFooter").classList.add("hidden");
+  }
+}
+
+function populateQuestionDetailEditForm(item) {
+  $("#questionDetailCategory").innerHTML =
+    QUESTION_CATEGORIES
+      .map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+      .join("");
+
+  $("#questionDetailCompany").innerHTML =
+    `<option value="">通用题库</option>` +
+    sortByUpdatedAt(data.applications)
+      .map(app => `<option value="${escapeHtml(app.id)}">${escapeHtml(app.company)} · ${escapeHtml(app.role)}</option>`)
+      .join("");
+
+  $("#questionDetailCategory").value = item.category;
+  $("#questionDetailDifficulty").value = item.difficulty;
+  $("#questionDetailCompany").value = data.applications.some(app => app.id === item.companyApplicationId)
+    ? item.companyApplicationId
+    : "";
+  $("#questionDetailStage").value = item.stage || "";
+  $("#questionDetailTextInput").value = item.text || "";
+  $("#questionDetailAnswerInput").value = item.answer || "";
+  $("#questionDetailReflectionInput").value = item.reflection || "";
+  $("#questionDetailTagsInput").value = item.tags.join(", ");
+  $("#questionDetailSourceTitleInput").value = item.sourceTitle || "";
+  $("#questionDetailSourceUrlInput").value = item.sourceUrl || "";
+}
+
+function setQuestionDetailEditMode(editing) {
+  const item = data.questions.find(question => question.id === activeQuestionDetailId);
+  if (!item) return;
+
+  questionDetailEditMode = Boolean(editing);
+
+  if (questionDetailEditMode) {
+    populateQuestionDetailEditForm(item);
+    $("#questionDetailView").classList.add("hidden");
+    $("#questionDetailEditForm").classList.remove("hidden");
+    $("#questionDetailViewFooter").classList.add("hidden");
+    $("#questionDetailEditFooter").classList.remove("hidden");
+    requestAnimationFrame(() => $("#questionDetailTextInput").focus());
+  } else {
+    $("#questionDetailEditForm").classList.add("hidden");
+    $("#questionDetailView").classList.remove("hidden");
+    $("#questionDetailEditFooter").classList.add("hidden");
+    $("#questionDetailViewFooter").classList.remove("hidden");
+    renderQuestionDetail();
+  }
+}
+
+function saveQuestionDetailEdits() {
+  if (!$("#questionDetailEditForm").reportValidity()) return;
+
+  const index = data.questions.findIndex(item => item.id === activeQuestionDetailId);
+  if (index < 0) return;
+
+  data.questions[index] = {
+    ...data.questions[index],
+    category: $("#questionDetailCategory").value,
+    difficulty: $("#questionDetailDifficulty").value,
+    companyApplicationId: $("#questionDetailCompany").value,
+    stage: $("#questionDetailStage").value.trim(),
+    text: $("#questionDetailTextInput").value.trim(),
+    answer: $("#questionDetailAnswerInput").value.trim(),
+    reflection: $("#questionDetailReflectionInput").value.trim(),
+    tags: $("#questionDetailTagsInput").value
+      .split(/[,，]/)
+      .map(tag => tag.trim())
+      .filter(Boolean),
+    sourceTitle: $("#questionDetailSourceTitleInput").value.trim(),
+    sourceUrl: $("#questionDetailSourceUrlInput").value.trim(),
+    updatedAt: new Date().toISOString()
+  };
+
+  questionDetailEditMode = false;
+  saveData();
+  renderQuestionDetail();
+  showToast("题目已保存并准备云同步");
+}
+
+function deleteQuestionFromDetail() {
+  const item = data.questions.find(question => question.id === activeQuestionDetailId);
+  if (!item) return;
+
+  if (!confirm(`确定删除“${getQuestionHeadline(item.text)}”吗？`)) return;
+
+  data.questions = data.questions.filter(question => question.id !== activeQuestionDetailId);
+  activeQuestionDetailId = null;
+  questionDetailEditMode = false;
+  closeModal("questionDetailModal");
+  saveData();
+  showToast("题目已删除");
 }
 
 function openAddQuestionModal() {
