@@ -1149,16 +1149,18 @@ function renderApplications() {
 
   $("#applicationsTable").innerHTML = `
     <table>
-      <thead><tr><th>公司 / 岗位</th><th>优先级</th><th>投递时间</th><th>状态</th><th>当前进度</th><th>地点</th><th>最近更新</th><th>操作</th></tr></thead>
+      <thead><tr><th>公司 / 岗位</th><th>网站链接</th><th>投递时间</th><th>状态</th><th>当前进度</th><th>地点</th><th>最近更新</th><th>操作</th></tr></thead>
       <tbody>
         ${rows.map(item => {
           const latestStage = [...item.stages]
             .sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0];
+          const jobUrl = String(item.jobUrl || "").trim();
+          const safeJobUrl = /^https?:\/\//i.test(jobUrl) ? jobUrl : "";
 
           return `
             <tr>
               <td><div class="company-cell"><div class="company-avatar">${escapeHtml(getInitial(item.company))}</div><div><button class="link-button" onclick="openDrawer('${item.id}')">${escapeHtml(item.company)}</button><div class="company-meta">${escapeHtml(item.role)}</div></div></div></td>
-              <td><span class="priority-badge priority-${item.priority}">${escapeHtml(PRIORITY_MAP[item.priority])}</span></td>
+              <td>${safeJobUrl ? `<a class="link-button" href="${escapeHtml(safeJobUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;white-space:nowrap">打开网站 ↗</a>` : "—"}</td>
               <td>${escapeHtml(formatDate(item.applyDate))}</td>
               <td><span class="status-badge status-${item.status}"><span class="status-dot"></span>${escapeHtml(STATUS_MAP[item.status])}</span></td>
               <td>${escapeHtml(latestStage?.name || "—")}</td>
