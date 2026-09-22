@@ -10,6 +10,7 @@ const STATUS_OPTIONS = [
   ["hr", "HR 面"],
   ["offer", "Offer"],
   ["rejected", "已拒"],
+  ["terminated", "已终止"],
   ["silent", "无回应"],
   ["withdrawn", "主动放弃"]
 ];
@@ -47,6 +48,7 @@ const DONUT_COLORS = {
   hr: "#e8793b",
   offer: "#35a463",
   rejected: "#df5b59",
+  terminated: "#8f6a58",
   silent: "#6b7280",
   withdrawn: "#9a6546"
 };
@@ -69,6 +71,7 @@ let activeQuestionDetailId = null;
 let questionDetailEditMode = false;
 let activeResumeId = null;
 let resumePreviewRenderToken = 0;
+let pendingApplicationImport = null;
 
 let calendarCursor = new Date();
 calendarCursor.setDate(1);
@@ -858,6 +861,10 @@ function bindEvents() {
 
   $("#quickAddBtn").addEventListener("click", openAddApplicationModal);
   $("#addApplicationBtn").addEventListener("click", openAddApplicationModal);
+  $("#importApplicationsBtn").addEventListener("click", () => $("#applicationImportFile").click());
+  $("#applicationImportFile").addEventListener("change", handleApplicationImportFile);
+  $("#applicationImportMode").addEventListener("change", renderApplicationImportPreview);
+  $("#confirmApplicationImportBtn").addEventListener("click", confirmApplicationImport);
   $("#saveApplicationBtn").addEventListener("click", saveApplicationFromForm);
 
   $("#applicationSearch").addEventListener("input", renderApplications);
@@ -1223,6 +1230,727 @@ function renderApplications() {
         }).join("")}
       </tbody>
     </table>`;
+}
+
+/* ========== V3.4 外部投递导入 ========== */
+
+const APPLICATION_IMPORT_ALIASES = {
+  company: ["company", "公司", "企业", "公司名称", "企业名称", "employer"],
+  role: ["role", "岗位", "职位", "岗位名称", "职位名称", "position", "job", "jobTitle"],
+  roleType: ["roleType", "岗位类型", "职位类型", "类型", "jobType"],
+  applyDate: ["applyDate", "投递时间", "投递日期", "申请日期", "申请时间", "date"],
+  channel: ["channel", "投递渠道", "申请渠道", "渠道"],
+  location: ["location", "工作地点", "地点", "城市", "工作城市", "city"],
+  salary: ["salary", "薪资", "薪资范围", "待遇"],
+  priority: ["priority", "优先级", "公司优先级"],
+  status: ["status", "投递状态", "申请状态", "状态"],
+  expectedResult: ["expectedResult", "最终结果", "结果"],
+  jobUrl: ["jobUrl", "岗位链接", "职位链接", "招聘链接", "投递链接", "链接", "url"],
+  note: ["note", "notes", "备注", "说明"],
+  raw: ["原始信息", "raw", "rawInfo", "sourceText", "原文", "原始文本"]
+};
+
+const APPLICATION_IMPORT_CITIES = [
+  "北京", "上海", "深圳", "广州", "杭州", "苏州", "东莞", "武汉", "珠海", "佛山",
+  "合肥", "济南", "青岛", "潮州", "成都", "天津", "宁波", "厦门", "福州", "长沙",
+  "惠州", "南京", "重庆", "西安", "无锡", "常州", "南通", "郑州", "沈阳", "大连",
+  "烟台", "昆山", "嘉兴", "绍兴"
+];
+
+const APPLICATION_IMPORT_STATUS_WEIGHT = {
+  preparing: 10,
+  silent: 15,
+  applied: 20,
+  test: 40,
+  interview: 50,
+  hr: 60,
+  rejected: 80,
+  withdrawn: 80,
+  terminated: 85,
+  offer: 100
+};
+
+function cleanApplicationImportText(value) {
+  return String(value ?? "")
+    .replace(/\uFEFF/g, " ")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeApplicationImportKey(value) {
+  return cleanApplicationImportText(value)
+    .toLowerCase()
+    .replace(/[\s_\-—:：/／（）()]+/g, "");
+}
+
+function pickApplicationImportValue(row, aliases) {
+  if (!row || typeof row !== "object") return "";
+
+  const normalized = new Map(
+    Object.entries(row).map(([key, value]) => [normalizeApplicationImportKey(key), value])
+  );
+
+  for (const alias of aliases) {
+    const key = normalizeApplicationImportKey(alias);
+    if (normalized.has(key)) return normalized.get(key);
+  }
+  return "";
+}
+
+function escapeApplicationImportRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeApplicationImportDate(value, rawText = "") {
+  const candidates = [value, rawText]
+    .map(cleanApplicationImportText)
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    const match = candidate.match(
+      /(20\d{2})[./-](\d{1,2})[./-](\d{1,2})(?:\s+(\d))?/
+    );
+    if (!match) continue;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    let dayText = match[3];
+
+    if (
+      match[4] &&
+      dayText.length === 1 &&
+      Number(`${dayText}${match[4]}`) <= 31
+    ) {
+      dayText += match[4];
+    }
+
+    const day = Number(dayText);
+    const date = new Date(year, month - 1, day);
+
+    if (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    ) {
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+
+  return "";
+}
+
+function getApplicationImportCityPattern() {
+  return APPLICATION_IMPORT_CITIES
+    .map(escapeApplicationImportRegExp)
+    .sort((a, b) => b.length - a.length)
+    .join("|");
+}
+
+function inferApplicationImportLocation(explicitValue, rawText) {
+  const explicit = cleanApplicationImportText(explicitValue);
+  if (explicit && !["没有", "暂无", "无", "null", "undefined"].includes(explicit.toLowerCase())) {
+    return explicit;
+  }
+
+  let head = cleanApplicationImportText(rawText);
+  head = head.split(/20\d{2}[./-]\d{1,2}[./-]\d{1,2}/)[0].trim();
+
+  const shorthand = head.match(/(?:苏\/北\/上|武\/深\/厦)\s*$/);
+  if (shorthand) return shorthand[0].trim();
+
+  const cityPattern = getApplicationImportCityPattern();
+  const match = head.match(new RegExp(`((?:${cityPattern})(?:[/／](?:${cityPattern}))*)\\s*$`));
+  return match ? match[1] : "";
+}
+
+function inferApplicationImportRole(explicitValue, company, rawText, location) {
+  const explicit = cleanApplicationImportText(explicitValue);
+  if (explicit) return explicit;
+
+  let text = cleanApplicationImportText(rawText);
+  if (!text) return "待补充岗位";
+
+  text = text.split(/20\d{2}[./-]\d{1,2}[./-]\d{1,2}/)[0].trim();
+
+  if (company) {
+    text = text.replace(new RegExp(escapeApplicationImportRegExp(company), "ig"), " ");
+  }
+
+  text = text
+    .replace(/(?:正式批|提前批|秋招|校招|春招|补录|社会招聘|校园招聘)/gi, " ")
+    .replace(/(^|\s)[^\s]{1,12}招聘(?=\s|$)/g, " ")
+    .replace(/招聘|招\s*聘/g, " ");
+
+  if (normalizeApplicationImportKey(company) === "tplink") {
+    text = text.replace(/^\s*(?:普联\s*)?(?:TP普联\s*)?/i, "");
+  }
+
+  const cityPattern = getApplicationImportCityPattern();
+  text = text.replace(
+    new RegExp(`\\s+(?:${cityPattern})(?:[/／](?:${cityPattern}))*\\s*$`),
+    " "
+  );
+  text = text.replace(/\s+(?:苏\/北\/上|武\/深\/厦)\s*$/, " ");
+
+  if (location) {
+    text = text.replace(
+      new RegExp(`\\s*${escapeApplicationImportRegExp(location)}\\s*$`, "i"),
+      " "
+    );
+  }
+
+  text = text
+    .replace(new RegExp(`\\s+(?:${cityPattern})[/／]?\\s*$`), " ")
+    .replace(/\s+(?:没有|暂无|无)\s*$/, " ");
+
+  text = cleanApplicationImportText(text);
+  return text || "待补充岗位";
+}
+
+function normalizeApplicationImportPriority(value) {
+  const text = cleanApplicationImportText(value).toLowerCase();
+  if (["high", "高", "高优先级", "重要"].includes(text)) return "high";
+  if (["low", "低", "低优先级"].includes(text)) return "low";
+  return "medium";
+}
+
+function normalizeApplicationImportStatus(value, rawText = "") {
+  const explicit = cleanApplicationImportText(value);
+  if (STATUS_MAP[explicit]) return explicit;
+
+  const text = cleanApplicationImportText(`${explicit} ${rawText}`);
+
+  if (/终止|已终止/.test(text)) return "terminated";
+  if (/offer|录用|已录用/i.test(text)) return "offer";
+  if (/HR\s*面/i.test(text)) return "hr";
+  if (/(?:一面|二面|三面|终面|面试).{0,3}(?:挂|未通过)|拒绝|淘汰|未通过/.test(text)) {
+    return "rejected";
+  }
+  if (/AI\s*面?|一面|二面|三面|四面|终面|技术面|面试/i.test(text)) {
+    return "interview";
+  }
+  if (/笔试|测评|机考|在线测试|\/笔(?:\s|$)/.test(text)) return "test";
+  if (/主动放弃|放弃/.test(text)) return "withdrawn";
+  if (/无回应|没回应|暂无回应/.test(text)) return "silent";
+  if (/已投递|投递成功|已申请|申请成功/.test(text)) return "applied";
+  if (/准备投递|待投递|未投递|准备/.test(text)) return "preparing";
+
+  return explicit ? "applied" : "preparing";
+}
+
+function inferApplicationImportStage(rawText, now) {
+  const raw = cleanApplicationImportText(rawText);
+  if (!raw) return null;
+
+  const candidates = [
+    { regex: /HR\s*面/i, name: "HR 面" },
+    { regex: /终面/, name: "终面" },
+    { regex: /三面/, name: "三面" },
+    { regex: /二面/, name: "二面" },
+    { regex: /一面/, name: "一面" },
+    { regex: /AI\s*面?|\/AI(?:\s|$)/i, name: "AI 面" },
+    { regex: /笔试|已测评\/笔|\/笔(?:\s|$)/, name: "笔试" },
+    { regex: /测评|在线测试/, name: "测评" }
+  ];
+
+  const matched = candidates.find(item => item.regex.test(raw));
+  if (!matched) return null;
+
+  return {
+    id: createId("stage"),
+    name: matched.name,
+    date: "",
+    result: /(?:挂|未通过|淘汰|拒绝)/.test(raw) ? "未通过" : "已完成",
+    format: "",
+    interviewer: "",
+    duration: "",
+    questions: "",
+    reflection: "",
+    notes: "由外部投递文件自动识别",
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function buildApplicationImportNote(noteValue, rawText, statusValue) {
+  const parts = [];
+  const note = cleanApplicationImportText(noteValue);
+  const raw = cleanApplicationImportText(rawText);
+  const status = cleanApplicationImportText(statusValue);
+
+  if (note) parts.push(note);
+  if (raw && !parts.includes(raw)) parts.push(`外部导入原始信息：${raw}`);
+  if (status && !raw && !parts.some(item => item.includes(status))) {
+    parts.push(`外部状态：${status}`);
+  }
+
+  return parts.join("\n");
+}
+
+function convertExternalApplicationRow(row) {
+  const company = cleanApplicationImportText(
+    pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.company)
+  );
+  if (!company) return null;
+
+  const rawText = cleanApplicationImportText(
+    pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.raw)
+  );
+  const explicitLocation = pickApplicationImportValue(
+    row,
+    APPLICATION_IMPORT_ALIASES.location
+  );
+  const location = inferApplicationImportLocation(explicitLocation, rawText);
+  const role = inferApplicationImportRole(
+    pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.role),
+    company,
+    rawText,
+    location
+  );
+  const explicitStatus = pickApplicationImportValue(
+    row,
+    APPLICATION_IMPORT_ALIASES.status
+  );
+  const now = new Date().toISOString();
+  const stage = inferApplicationImportStage(rawText, now);
+
+  return normalizeApplication({
+    company,
+    role,
+    roleType: cleanApplicationImportText(
+      pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.roleType)
+    ),
+    applyDate: normalizeApplicationImportDate(
+      pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.applyDate),
+      rawText
+    ),
+    channel: cleanApplicationImportText(
+      pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.channel)
+    ),
+    location,
+    salary: cleanApplicationImportText(
+      pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.salary)
+    ),
+    priority: normalizeApplicationImportPriority(
+      pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.priority)
+    ),
+    status: normalizeApplicationImportStatus(explicitStatus, rawText),
+    expectedResult: cleanApplicationImportText(
+      pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.expectedResult)
+    ) || (/终止/.test(cleanApplicationImportText(explicitStatus)) ? "终止" : ""),
+    jobUrl: cleanApplicationImportText(
+      pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.jobUrl)
+    ),
+    note: buildApplicationImportNote(
+      pickApplicationImportValue(row, APPLICATION_IMPORT_ALIASES.note),
+      rawText,
+      explicitStatus
+    ),
+    createdAt: now,
+    updatedAt: now,
+    stages: stage ? [stage] : []
+  });
+}
+
+function applicationImportIdentityPart(value) {
+  return cleanApplicationImportText(value)
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s·•_—\-–/／（）()【】[\],，.。:：;；]+/g, "");
+}
+
+function applicationImportRoleFingerprint(role) {
+  const cityPattern = getApplicationImportCityPattern();
+  let value = applicationImportIdentityPart(role);
+
+  if (value === applicationImportIdentityPart("待补充岗位")) return "";
+
+  value = value
+    .replace(/工程师/g, "工程")
+    .replace(/没有|暂无|无/g, "")
+    .replace(new RegExp(cityPattern, "g"), "");
+
+  return value;
+}
+
+function sameApplicationImportIdentity(a, b) {
+  const companyA = applicationImportIdentityPart(a.company);
+  const companyB = applicationImportIdentityPart(b.company);
+  if (!companyA || companyA !== companyB) return false;
+
+  const roleA = applicationImportRoleFingerprint(a.role);
+  const roleB = applicationImportRoleFingerprint(b.role);
+
+  if (!roleA || !roleB) return true;
+  if (roleA === roleB) return true;
+
+  if (roleA.includes(roleB) || roleB.includes(roleA)) {
+    return Math.abs(roleA.length - roleB.length) <= 3;
+  }
+
+  return false;
+}
+
+function joinUniqueApplicationImportNotes(a, b) {
+  const rows = `${a || ""}\n${b || ""}`
+    .split("\n")
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  return [...new Set(rows)].join("\n");
+}
+
+function mergeApplicationImportStages(a, b) {
+  const result = [...(a || [])];
+
+  for (const stage of b || []) {
+    const exists = result.some(item =>
+      cleanApplicationImportText(item.name) === cleanApplicationImportText(stage.name) &&
+      cleanApplicationImportText(item.date) === cleanApplicationImportText(stage.date)
+    );
+    if (!exists) result.push(stage);
+  }
+
+  return result;
+}
+
+function pickBetterApplicationImportRole(a, b) {
+  const first = cleanApplicationImportText(a);
+  const second = cleanApplicationImportText(b);
+
+  if (!first || first === "待补充岗位") return second || first || "待补充岗位";
+  if (!second || second === "待补充岗位") return first;
+
+  return applicationImportRoleFingerprint(second).length >
+    applicationImportRoleFingerprint(first).length
+    ? second
+    : first;
+}
+
+function mergeImportedApplication(base, incoming, existingWins = false) {
+  const now = new Date().toISOString();
+  const baseWeight = APPLICATION_IMPORT_STATUS_WEIGHT[base.status] || 0;
+  const incomingWeight = APPLICATION_IMPORT_STATUS_WEIGHT[incoming.status] || 0;
+  const nextStatus = incomingWeight > baseWeight ? incoming.status : base.status;
+
+  if (existingWins) {
+    return normalizeApplication({
+      ...base,
+      role: base.role || incoming.role,
+      roleType: base.roleType || incoming.roleType,
+      applyDate: base.applyDate || incoming.applyDate,
+      channel: base.channel || incoming.channel,
+      location: base.location || incoming.location,
+      salary: base.salary || incoming.salary,
+      priority: base.priority || incoming.priority,
+      status: nextStatus,
+      expectedResult: base.expectedResult || incoming.expectedResult,
+      jobUrl: base.jobUrl || incoming.jobUrl,
+      note: joinUniqueApplicationImportNotes(base.note, incoming.note),
+      stages: mergeApplicationImportStages(base.stages, incoming.stages),
+      createdAt: base.createdAt || incoming.createdAt || now,
+      updatedAt: now
+    });
+  }
+
+  const dates = [base.applyDate, incoming.applyDate].filter(Boolean).sort();
+
+  return normalizeApplication({
+    ...base,
+    role: pickBetterApplicationImportRole(base.role, incoming.role),
+    roleType: incoming.roleType || base.roleType,
+    applyDate: dates[0] || "",
+    channel: incoming.channel || base.channel,
+    location: incoming.location || base.location,
+    salary: incoming.salary || base.salary,
+    priority: incoming.priority || base.priority,
+    status: nextStatus,
+    expectedResult: incoming.expectedResult || base.expectedResult,
+    jobUrl: incoming.jobUrl || base.jobUrl,
+    note: joinUniqueApplicationImportNotes(base.note, incoming.note),
+    stages: mergeApplicationImportStages(base.stages, incoming.stages),
+    createdAt: base.createdAt || incoming.createdAt || now,
+    updatedAt: now
+  });
+}
+
+function dedupeImportedApplications(applications) {
+  const merged = [];
+
+  for (const item of applications) {
+    const index = merged.findIndex(existing =>
+      sameApplicationImportIdentity(existing, item)
+    );
+
+    if (index >= 0) {
+      merged[index] = mergeImportedApplication(merged[index], item, false);
+    } else {
+      merged.push(item);
+    }
+  }
+
+  return merged;
+}
+
+function extractApplicationImportRows(parsed) {
+  if (Array.isArray(parsed)) return parsed;
+
+  if (parsed && typeof parsed === "object") {
+    const preferredKeys = ["applications", "rows", "items", "records", "data"];
+
+    for (const key of preferredKeys) {
+      if (Array.isArray(parsed[key])) return parsed[key];
+    }
+
+    const firstArray = Object.values(parsed).find(value => Array.isArray(value));
+    if (firstArray) return firstArray;
+  }
+
+  throw new Error("没有找到可导入的投递数组。JSON 可以直接是数组，也可以包含 applications / rows / items / records / data 数组。");
+}
+
+function parseApplicationImportCsv(text) {
+  const input = String(text || "").replace(/^\uFEFF/, "");
+  const firstLine = input.split(/\r?\n/, 1)[0] || "";
+  const delimiter = firstLine.includes("\t") && !firstLine.includes(",") ? "\t" : ",";
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const next = input[index + 1];
+
+    if (char === '"') {
+      if (quoted && next === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+
+    if (!quoted && char === delimiter) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if (!quoted && (char === "\n" || char === "\r")) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell);
+      cell = "";
+      if (row.some(value => cleanApplicationImportText(value))) rows.push(row);
+      row = [];
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+  if (row.some(value => cleanApplicationImportText(value))) rows.push(row);
+
+  if (rows.length < 2) {
+    throw new Error("CSV 中没有可导入的数据行。");
+  }
+
+  const headers = rows[0].map(cleanApplicationImportText);
+  return rows.slice(1).map(values => {
+    const record = {};
+    headers.forEach((header, index) => {
+      if (header) record[header] = values[index] ?? "";
+    });
+    return record;
+  });
+}
+
+async function parseApplicationImportFile(file) {
+  const text = await file.text();
+  const lowerName = file.name.toLowerCase();
+
+  if (lowerName.endsWith(".csv") || file.type === "text/csv") {
+    return parseApplicationImportCsv(text);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`JSON 格式不正确：${error.message}`);
+  }
+
+  return extractApplicationImportRows(parsed);
+}
+
+function getApplicationImportImpact(applications, mode) {
+  if (mode === "append") {
+    return { added: applications.length, merged: 0 };
+  }
+
+  const simulated = [...data.applications];
+  let added = 0;
+  let merged = 0;
+
+  for (const item of applications) {
+    const index = simulated.findIndex(existing =>
+      sameApplicationImportIdentity(existing, item)
+    );
+
+    if (index >= 0) {
+      simulated[index] = mergeImportedApplication(simulated[index], item, true);
+      merged += 1;
+    } else {
+      simulated.push(item);
+      added += 1;
+    }
+  }
+
+  return { added, merged };
+}
+
+function renderApplicationImportPreview() {
+  if (!pendingApplicationImport) return;
+
+  const mode = $("#applicationImportMode").value;
+  const impact = getApplicationImportImpact(
+    pendingApplicationImport.applications,
+    mode
+  );
+
+  $("#applicationImportFileName").textContent = pendingApplicationImport.fileName;
+  $("#applicationImportRawCount").textContent = String(pendingApplicationImport.rawCount);
+  $("#applicationImportParsedCount").textContent = String(
+    pendingApplicationImport.applications.length
+  );
+  $("#applicationImportActionCount").textContent =
+    `${impact.added} 新增 / ${impact.merged} 合并`;
+
+  const warnings = [];
+  if (pendingApplicationImport.collapsedCount > 0) {
+    warnings.push(
+      `文件内识别到 ${pendingApplicationImport.collapsedCount} 条重复/补充行，已自动合并。`
+    );
+  }
+  if (pendingApplicationImport.invalidCount > 0) {
+    warnings.push(
+      `${pendingApplicationImport.invalidCount} 行缺少公司名称，已跳过。`
+    );
+  }
+
+  $("#applicationImportWarnings").innerHTML = warnings.length
+    ? warnings.map(item => `<div>• ${escapeHtml(item)}</div>`).join("")
+    : `<div>字段识别正常，可直接导入。</div>`;
+
+  const preview = pendingApplicationImport.applications.slice(0, 10);
+  $("#applicationImportPreview").innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>公司 / 岗位</th>
+          <th>投递日期</th>
+          <th>状态</th>
+          <th>地点</th>
+          <th>识别进度</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${preview.map(item => `
+          <tr>
+            <td>
+              <strong>${escapeHtml(item.company)}</strong>
+              <div class="company-meta">${escapeHtml(item.role || "待补充岗位")}</div>
+            </td>
+            <td>${escapeHtml(item.applyDate || "—")}</td>
+            <td><span class="status-badge status-${item.status}">${escapeHtml(STATUS_MAP[item.status] || item.status)}</span></td>
+            <td>${escapeHtml(item.location || "—")}</td>
+            <td>${escapeHtml(item.stages?.[0]?.name || "—")}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+    ${pendingApplicationImport.applications.length > preview.length
+      ? `<div class="import-preview-more">仅预览前 ${preview.length} 条，共 ${pendingApplicationImport.applications.length} 条。</div>`
+      : ""}
+  `;
+}
+
+async function handleApplicationImportFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const rows = await parseApplicationImportFile(file);
+    const converted = rows
+      .map(convertExternalApplicationRow)
+      .filter(Boolean);
+
+    if (!converted.length) {
+      throw new Error("没有识别到有效投递。至少需要“企业 / 公司 / company”字段。");
+    }
+
+    const applications = dedupeImportedApplications(converted);
+
+    pendingApplicationImport = {
+      fileName: file.name,
+      rawCount: rows.length,
+      invalidCount: rows.length - converted.length,
+      collapsedCount: converted.length - applications.length,
+      applications
+    };
+
+    $("#applicationImportMode").value = "merge";
+    renderApplicationImportPreview();
+    openModal("applicationImportModal");
+  } catch (error) {
+    alert(`投递导入失败：${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function confirmApplicationImport() {
+  if (!pendingApplicationImport?.applications?.length) return;
+
+  const mode = $("#applicationImportMode").value;
+  let added = 0;
+  let merged = 0;
+
+  for (const imported of pendingApplicationImport.applications) {
+    const incoming = normalizeApplication({
+      ...imported,
+      id: createId("app"),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    if (mode === "merge") {
+      const index = data.applications.findIndex(existing =>
+        sameApplicationImportIdentity(existing, incoming)
+      );
+
+      if (index >= 0) {
+        data.applications[index] = mergeImportedApplication(
+          data.applications[index],
+          incoming,
+          true
+        );
+        merged += 1;
+        continue;
+      }
+    }
+
+    data.applications.unshift(incoming);
+    added += 1;
+  }
+
+  closeModal("applicationImportModal");
+  pendingApplicationImport = null;
+  saveData();
+  showToast(`导入完成：新增 ${added} 条，合并 ${merged} 条`);
 }
 
 function openAddApplicationModal() {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="秋招 Tracker V3：投递、面试、日历、复盘、自动云同步和邮件提醒。" />
   <title>秋招 Tracker V3</title>
-  <link rel="stylesheet" href="./styles.css?v=3.3.0" />
+  <link rel="stylesheet" href="./styles.css?v=3.4.0" />
 </head>
 <body>
   <!-- 登录页 -->
@@ -133,7 +133,11 @@
           <section class="panel">
             <div class="panel-head head-wrap">
               <div><h2>投递管理</h2><p>公司、岗位、优先级、状态与完整招聘流程</p></div>
-              <button class="btn btn-primary" id="addApplicationBtn">＋ 新增投递</button>
+              <div class="application-head-actions">
+                <button class="btn" id="importApplicationsBtn">⇧ 导入投递</button>
+                <button class="btn btn-primary" id="addApplicationBtn">＋ 新增投递</button>
+              </div>
+              <input type="file" class="hidden" id="applicationImportFile" accept=".json,.csv,application/json,text/csv" />
             </div>
 
             <div class="toolbar app-toolbar">
@@ -275,6 +279,45 @@
     </div>
   </div>
 
+
+  <!-- V3.4 外部投递导入 -->
+  <div class="modal-backdrop" id="applicationImportModal"><div class="modal import-app-modal">
+    <div class="modal-header">
+      <div>
+        <h2>导入投递</h2>
+        <p class="import-modal-subtitle">支持 JSON / CSV；只追加或合并投递，不会覆盖题库、日历和简历。</p>
+      </div>
+      <button class="icon-btn" data-close="applicationImportModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="import-summary-grid">
+        <div><span>文件</span><strong id="applicationImportFileName">—</strong></div>
+        <div><span>原始行</span><strong id="applicationImportRawCount">0</strong></div>
+        <div><span>识别投递</span><strong id="applicationImportParsedCount">0</strong></div>
+        <div><span>执行方式</span><strong id="applicationImportActionCount">0 新增 / 0 合并</strong></div>
+      </div>
+      <label class="import-mode-label">重复项处理
+        <select class="field-select" id="applicationImportMode">
+          <option value="merge">智能合并：按公司 + 岗位识别重复项</option>
+          <option value="append">全部新增：忽略已有投递</option>
+        </select>
+      </label>
+      <div class="import-help">
+        <strong>自动识别字段</strong>
+        <p>公司/企业、岗位/职位、投递日期、工作地点、状态、岗位链接、备注等；若只有“原始信息”，会尝试从文本中提取岗位、日期、地点和当前进度。</p>
+      </div>
+      <div class="import-warnings" id="applicationImportWarnings"></div>
+      <div class="import-preview-head">
+        <strong>导入预览</strong>
+        <span>确认无误后再写入当前账号</span>
+      </div>
+      <div class="table-wrap import-preview-table" id="applicationImportPreview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-close="applicationImportModal">取消</button>
+      <button class="btn btn-primary" id="confirmApplicationImportBtn">确认导入</button>
+    </div>
+  </div></div>
   <!-- 投递弹窗 -->
   <div class="modal-backdrop" id="applicationModal"><div class="modal">
     <div class="modal-header"><h2 id="applicationModalTitle">新增投递</h2><button class="icon-btn" data-close="applicationModal">✕</button></div>
@@ -471,7 +514,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.4.0/dist/docx-preview.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="./config.js?v=3.3.0"></script>
-  <script type="module" src="./app.js?v=3.3.0"></script>
+  <script src="./config.js?v=3.4.0"></script>
+  <script type="module" src="./app.js?v=3.4.0"></script>
 </body>
 </html>
