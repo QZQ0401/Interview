@@ -3432,7 +3432,7 @@ async function renderPdfPreviewBlobs(file) {
 }
 
 async function renderDocxPreviewBlobs(file) {
-  if (!window.docx?.renderAsync) {
+  if (!window.docx?.renderAsync && !window.ResumeDocxFallback?.render) {
     throw new Error("Word 预览组件加载失败，请刷新页面后重试");
   }
 
@@ -3443,8 +3443,51 @@ async function renderDocxPreviewBlobs(file) {
   const stage = $("#resumeDocxRenderStage");
   stage.innerHTML = "";
 
-  setResumeUploadStatus("正在解析 Word 文档…");
+  let inspection = null;
+  if (window.ResumeDocxFallback?.inspect) {
+    try {
+      inspection = await window.ResumeDocxFallback.inspect(file);
+    } catch (error) {
+      console.warn("Word 版式检测失败，将继续使用常规渲染：", error);
+    }
+  }
 
+  const preferFallback = Boolean(inspection?.layoutHeavy);
+  const attempts = preferFallback
+    ? [renderDocxWithOoxmlFallback, renderDocxWithDocxPreview]
+    : [renderDocxWithDocxPreview, renderDocxWithOoxmlFallback];
+  const errors = [];
+
+  for (const renderer of attempts) {
+    if (renderer === renderDocxWithOoxmlFallback && !window.ResumeDocxFallback?.render) {
+      continue;
+    }
+
+    try {
+      stage.innerHTML = "";
+      const pages = await renderer(file, stage);
+      const blobs = await captureResumePagesToJpeg(pages, stage);
+      stage.innerHTML = "";
+      return blobs;
+    } catch (error) {
+      console.warn(`Word 预览方式 ${renderer.name} 失败：`, error);
+      errors.push(error);
+    }
+  }
+
+  stage.innerHTML = "";
+  const detail = errors.map(error => error?.message).filter(Boolean).join("；");
+  throw new Error(
+    `Word 图片预览生成失败${detail ? `：${detail}` : ""}。可以先导出为 PDF 上传，或检查浏览器控制台。`
+  );
+}
+
+async function renderDocxWithDocxPreview(file, stage) {
+  if (!window.docx?.renderAsync) {
+    throw new Error("docx-preview 未加载");
+  }
+
+  setResumeUploadStatus("正在解析 Word 文档…");
   await window.docx.renderAsync(file, stage, null, {
     inWrapper: true,
     breakPages: true,
@@ -3459,17 +3502,10 @@ async function renderDocxPreviewBlobs(file) {
     ignoreLastRenderedPageBreak: false
   });
 
-  if (document.fonts?.ready) {
-    await document.fonts.ready;
-  }
-
-  await waitForImages(stage);
-  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  await settleResumeRender(stage);
 
   let pages = [...stage.querySelectorAll(".docx-wrapper > section.docx")];
-
   if (!pages.length) pages = [...stage.querySelectorAll("section.docx")];
-
   if (!pages.length) {
     const wrapper = stage.querySelector(".docx-wrapper");
     if (wrapper) pages = [wrapper];
@@ -3478,28 +3514,115 @@ async function renderDocxPreviewBlobs(file) {
   if (!pages.length) {
     throw new Error("Word 文档解析完成，但没有识别到可预览页面");
   }
+  return pages;
+}
 
+async function renderDocxWithOoxmlFallback(file, stage) {
+  if (!window.ResumeDocxFallback?.render) {
+    throw new Error("复杂 Word 版式兼容组件未加载");
+  }
+
+  setResumeUploadStatus("检测到大量浮动文本框/图形，正在使用兼容模式还原版式…");
+  const pages = await window.ResumeDocxFallback.render(file, stage);
+  await settleResumeRender(stage);
+
+  if (!Array.isArray(pages) || !pages.length) {
+    throw new Error("兼容模式没有生成可预览页面");
+  }
+  return pages;
+}
+
+async function settleResumeRender(stage) {
+  if (document.fonts?.ready) {
+    await document.fonts.ready;
+  }
+  await waitForImages(stage);
+  // 强制浏览器完成布局和绘制，避免刚创建 DOM 就截图得到空白画布。
+  void stage.offsetHeight;
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
+async function captureResumePagesToJpeg(pages, stage) {
   if (pages.length > RESUME_MAX_PAGES) {
     throw new Error(`简历最多支持 ${RESUME_MAX_PAGES} 页`);
   }
 
   const blobs = [];
-
   for (let index = 0; index < pages.length; index += 1) {
     setResumeUploadStatus(`正在生成 Word 图片预览 ${index + 1} / ${pages.length}…`);
+    const canvas = await captureResumePageCanvas(pages[index], stage);
 
-    const canvas = await window.html2canvas(pages[index], {
-      backgroundColor: "#ffffff",
-      scale: Math.min(2, Math.max(1.35, window.devicePixelRatio || 1)),
-      useCORS: true,
-      logging: false
-    });
+    if (isResumeCanvasMostlyBlank(canvas)) {
+      throw new Error(`第 ${index + 1} 页生成结果接近全白，已阻止上传空白预览图`);
+    }
 
     blobs.push(await canvasToJpegBlob(canvas));
   }
-
-  stage.innerHTML = "";
   return blobs;
+}
+
+async function captureResumePageCanvas(page, stage) {
+  const rect = page.getBoundingClientRect();
+  const width = Math.max(1, Math.ceil(rect.width));
+  const height = Math.max(1, Math.ceil(rect.height));
+  const scale = Math.min(2, Math.max(1.35, window.devicePixelRatio || 1));
+
+  return window.html2canvas(page, {
+    backgroundColor: "#ffffff",
+    scale,
+    useCORS: true,
+    logging: false,
+    scrollX: 0,
+    scrollY: 0,
+    width,
+    height,
+    windowWidth: Math.max(document.documentElement.clientWidth, width + 32),
+    windowHeight: Math.max(document.documentElement.clientHeight, height + 32),
+    onclone(clonedDocument) {
+      const clonedStage = clonedDocument.getElementById(stage.id);
+      if (!clonedStage) return;
+      Object.assign(clonedStage.style, {
+        position: "fixed",
+        left: "0px",
+        top: "0px",
+        zIndex: "2147483000",
+        width: "max-content",
+        maxWidth: "none",
+        pointerEvents: "none",
+        visibility: "visible",
+        opacity: "1",
+        transform: "none"
+      });
+    }
+  });
+}
+
+function isResumeCanvasMostlyBlank(canvas) {
+  const sample = document.createElement("canvas");
+  const width = 80;
+  const height = Math.max(80, Math.round(width * canvas.height / Math.max(canvas.width, 1)));
+  sample.width = width;
+  sample.height = height;
+
+  const context = sample.getContext("2d", { willReadFrequently: true });
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(canvas, 0, 0, width, height);
+
+  const pixels = context.getImageData(0, 0, width, height).data;
+  let ink = 0;
+  const total = width * height;
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    const alpha = pixels[i + 3];
+    if (alpha < 16) continue;
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+    if (r < 242 || g < 242 || b < 242) ink += 1;
+  }
+
+  return ink / total < 0.0025;
 }
 
 function waitForImages(container) {

@@ -103,7 +103,7 @@
 .resume-upload-status.success{border-color:#bfe0ca;background:#f0fdf4;color:#15803d}.resume-upload-status.error{border-color:#efc7c1;background:#fff1ef;color:var(--danger)}
 .resume-privacy-note{display:flex;gap:9px;align-items:flex-start;margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fbfcfb}
 .resume-privacy-note strong{font-size:9px}.resume-privacy-note p{margin:2px 0 0;color:var(--muted);font-size:8px;line-height:1.55}
-.resume-docx-render-stage{position:fixed;left:-100000px;top:0;z-index:-1;width:max-content;max-width:none;pointer-events:none;background:#fff}
+.resume-docx-render-stage{position:fixed;left:0;top:0;z-index:-2147483000;width:max-content;max-width:none;pointer-events:none;background:#fff}
 @media(max-width:820px){.resume-layout{grid-template-columns:1fr}.resume-sidebar{position:static}.resume-list{grid-template-columns:repeat(2,minmax(0,1fr))}.resume-pages{max-height:none}}
 @media(max-width:650px){.resume-list{grid-template-columns:1fr}.resume-viewer-toolbar{align-items:flex-start;flex-direction:column}.resume-viewer-toolbar .button-row{width:100%}.resume-viewer-toolbar .button-row .btn{flex:1}.resume-pages{padding:10px;gap:12px}.resume-empty{padding:24px 15px}}
 
