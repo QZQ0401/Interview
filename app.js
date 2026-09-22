@@ -54,6 +54,12 @@ const DONUT_COLORS = {
 const CONFIG = window.APP_CONFIG || {};
 const APP_URL = CONFIG.APP_URL || window.location.origin + window.location.pathname;
 
+const RESUME_BUCKET = "resumes";
+const RESUME_MAX_FILE_BYTES = 10 * 1024 * 1024;
+const RESUME_MAX_PAGES = 12;
+const PDFJS_MODULE_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs";
+const PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs";
+
 let supabase = null;
 let currentUser = null;
 let data = createEmptyData();
@@ -61,6 +67,8 @@ let activeApplicationId = null;
 
 let activeQuestionDetailId = null;
 let questionDetailEditMode = false;
+let activeResumeId = null;
+let resumePreviewRenderToken = 0;
 
 let calendarCursor = new Date();
 calendarCursor.setDate(1);
@@ -272,7 +280,8 @@ function createEmptyData() {
     },
     applications: [],
     reminders: [],
-    questions: []
+    questions: [],
+    resumes: []
   };
 }
 
@@ -331,6 +340,9 @@ function normalizeData(input) {
       : [],
     questions: Array.isArray(source.questions)
       ? source.questions.map(normalizeQuestion)
+      : [],
+    resumes: Array.isArray(source.resumes)
+      ? source.resumes.map(normalizeResume)
       : []
   };
 }
@@ -418,6 +430,26 @@ function normalizeQuestion(item = {}) {
     tags: Array.isArray(item.tags) ? item.tags : [],
     sourceTitle: item.sourceTitle || "",
     sourceUrl: item.sourceUrl || "",
+    createdAt: item.createdAt || now,
+    updatedAt: item.updatedAt || now
+  };
+}
+
+function normalizeResume(item = {}) {
+  const now = new Date().toISOString();
+  const kind = ["pdf", "docx"].includes(item.kind) ? item.kind : "pdf";
+
+  return {
+    id: item.id || createId("resume"),
+    name: item.name || item.fileName || "未命名简历",
+    fileName: item.fileName || "",
+    kind,
+    fileSize: Number(item.fileSize) || 0,
+    pageCount: Number(item.pageCount) || 0,
+    originalPath: item.originalPath || "",
+    previewPaths: Array.isArray(item.previewPaths)
+      ? item.previewPaths.filter(Boolean)
+      : [],
     createdAt: item.createdAt || now,
     updatedAt: item.updatedAt || now
   };
@@ -584,11 +616,15 @@ async function smartSync({ silent = true } = {}) {
     const cloudData = normalizeData(row.data);
 
     const localCount =
-      data.applications.length + data.reminders.length + data.questions.length;
+      data.applications.length +
+      data.reminders.length +
+      data.questions.length +
+      data.resumes.length;
     const cloudCount =
       cloudData.applications.length +
       cloudData.reminders.length +
-      cloudData.questions.length;
+      cloudData.questions.length +
+      cloudData.resumes.length;
 
     const localTime = new Date(data.meta.updatedAt || 0).getTime();
     const cloudTime = new Date(cloudData.meta.updatedAt || 0).getTime();
@@ -860,6 +896,19 @@ function bindEvents() {
   });
   $("#questionCompanyFilter").addEventListener("change", renderQuestions);
 
+  $("#uploadResumeBtn").addEventListener("click", () => $("#resumeFile").click());
+  $("#resumeEmptyUploadBtn").addEventListener("click", () => $("#resumeFile").click());
+  $("#resumeFile").addEventListener("change", handleResumeUpload);
+  $("#resumeList").addEventListener("click", event => {
+    const button = event.target.closest("[data-resume-id]");
+    if (!button) return;
+
+    activeResumeId = button.dataset.resumeId;
+    renderResume();
+  });
+  $("#downloadResumeBtn").addEventListener("click", downloadActiveResume);
+  $("#deleteResumeBtn").addEventListener("click", deleteActiveResume);
+
   $("#backupBtn").addEventListener("click", () => openModal("backupModal"));
   $("#exportJsonBtn").addEventListener("click", exportJson);
   $("#exportCsvBtn").addEventListener("click", exportCsv);
@@ -921,6 +970,7 @@ function switchView(view) {
   if (view === "applications") renderApplications();
   if (view === "calendar") renderCalendar();
   if (view === "questions") renderQuestions();
+  if (view === "resume") renderResume();
 }
 
 function renderAll() {
@@ -934,6 +984,8 @@ function renderAll() {
   renderQuestionFilters();
   renderQuestionModules();
   renderQuestions();
+  renderResumeList();
+  if ($("#view-resume")?.classList.contains("active")) renderResume();
   refreshQuestionDetailIfOpen();
   refreshDrawerIfOpen();
 }
@@ -2315,6 +2367,490 @@ async function importQuestionBankJson(event) {
     alert(`导入题库失败：${error.message}`);
   } finally {
     event.target.value = "";
+  }
+}
+
+
+/* ========== V3.3 简历管理 ========== */
+
+function getResumeById(id) {
+  return data.resumes.find(item => item.id === id);
+}
+
+function ensureActiveResume() {
+  const sorted = sortByUpdatedAt(data.resumes);
+
+  if (!sorted.length) {
+    activeResumeId = null;
+    return null;
+  }
+
+  if (!activeResumeId || !getResumeById(activeResumeId)) {
+    activeResumeId = sorted[0].id;
+  }
+
+  return getResumeById(activeResumeId);
+}
+
+function renderResumeList() {
+  const rows = sortByUpdatedAt(data.resumes);
+  const active = ensureActiveResume();
+
+  $("#resumeCount").textContent = `${rows.length} 份`;
+
+  $("#resumeList").innerHTML = rows.length
+    ? rows.map(item => `
+        <button
+          type="button"
+          class="resume-list-item ${active?.id === item.id ? "active" : ""}"
+          data-resume-id="${escapeHtml(item.id)}"
+        >
+          <span class="resume-file-icon">${item.kind === "pdf" ? "PDF" : "DOCX"}</span>
+          <span class="resume-list-copy">
+            <strong>${escapeHtml(item.name || item.fileName || "未命名简历")}</strong>
+            <small>${escapeHtml(formatFileSize(item.fileSize))} · ${item.pageCount || item.previewPaths.length || 0} 页</small>
+          </span>
+        </button>
+      `).join("")
+    : `<div class="resume-list-empty">暂无简历</div>`;
+}
+
+async function renderResume() {
+  renderResumeList();
+
+  const item = ensureActiveResume();
+  const empty = $("#resumeEmpty");
+  const viewer = $("#resumeViewer");
+  const pages = $("#resumePreviewPages");
+
+  if (!item) {
+    resumePreviewRenderToken += 1;
+    empty.classList.remove("hidden");
+    viewer.classList.add("hidden");
+    pages.innerHTML = "";
+    return;
+  }
+
+  empty.classList.add("hidden");
+  viewer.classList.remove("hidden");
+  $("#resumeViewerName").textContent = item.name || item.fileName || "未命名简历";
+  $("#resumeViewerMeta").textContent =
+    `${item.kind === "pdf" ? "PDF" : "Word"} · ` +
+    `${item.pageCount || item.previewPaths.length || 0} 页 · ` +
+    `${formatFileSize(item.fileSize)} · 更新于 ${formatDateTime(item.updatedAt)}`;
+
+  const token = ++resumePreviewRenderToken;
+
+  if (!item.previewPaths.length) {
+    pages.innerHTML = `
+      <div class="resume-preview-message">
+        这份简历没有可用的图片预览，请删除后重新上传。
+      </div>`;
+    return;
+  }
+
+  pages.innerHTML = `<div class="resume-preview-message">正在加载图片预览…</div>`;
+
+  try {
+    const { data: signedItems, error } = await supabase
+      .storage
+      .from(RESUME_BUCKET)
+      .createSignedUrls(item.previewPaths, 3600);
+
+    if (error) throw error;
+    if (token !== resumePreviewRenderToken) return;
+
+    const urls = (signedItems || []).map(row => row?.signedUrl || "").filter(Boolean);
+
+    if (urls.length !== item.previewPaths.length) {
+      throw new Error("部分预览图未能取得访问地址");
+    }
+
+    pages.innerHTML = urls.map((url, index) => `
+      <figure class="resume-page">
+        <img
+          src="${escapeHtml(url)}"
+          alt="${escapeHtml(item.name || item.fileName || "简历")} 第 ${index + 1} 页"
+          loading="${index === 0 ? "eager" : "lazy"}"
+        />
+        <figcaption>第 ${index + 1} / ${urls.length} 页</figcaption>
+      </figure>
+    `).join("");
+  } catch (error) {
+    if (token !== resumePreviewRenderToken) return;
+
+    console.error("加载简历预览失败：", error);
+    pages.innerHTML = `
+      <div class="resume-preview-message resume-preview-error">
+        图片预览加载失败：${escapeHtml(error?.message || "未知错误")}
+      </div>`;
+  }
+}
+
+function setResumeUploadStatus(message = "", type = "") {
+  const box = $("#resumeUploadStatus");
+
+  if (!message) {
+    box.className = "resume-upload-status hidden";
+    box.textContent = "";
+    return;
+  }
+
+  box.className = `resume-upload-status ${type}`.trim();
+  box.textContent = message;
+}
+
+function formatFileSize(bytes) {
+  const value = Number(bytes) || 0;
+
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function getResumeFileKind(file) {
+  const name = String(file?.name || "").toLowerCase();
+
+  if (name.endsWith(".pdf")) return "pdf";
+  if (name.endsWith(".docx")) return "docx";
+  if (name.endsWith(".doc")) return "doc";
+
+  return "";
+}
+
+function getResumeContentType(kind) {
+  if (kind === "pdf") return "application/pdf";
+  return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+}
+
+async function handleResumeUpload(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+
+  if (!file || !currentUser || !supabase) return;
+
+  const kind = getResumeFileKind(file);
+
+  if (kind === "doc") {
+    alert("旧版 .doc 暂时无法在纯浏览器中稳定转成图片。请在 Word 中“另存为 .docx”或导出为 PDF 后再上传。");
+    return;
+  }
+
+  if (!["pdf", "docx"].includes(kind)) {
+    alert("请选择 PDF 或 Word（.docx）格式的简历。");
+    return;
+  }
+
+  if (file.size > RESUME_MAX_FILE_BYTES) {
+    alert(`简历文件不能超过 ${formatFileSize(RESUME_MAX_FILE_BYTES)}。`);
+    return;
+  }
+
+  const uploadButton = $("#uploadResumeBtn");
+  const uploadedPaths = [];
+  uploadButton.disabled = true;
+
+  try {
+    setResumeUploadStatus("正在把简历转换成逐页图片，请稍候…");
+
+    const previewBlobs = kind === "pdf"
+      ? await renderPdfPreviewBlobs(file)
+      : await renderDocxPreviewBlobs(file);
+
+    if (!previewBlobs.length) {
+      throw new Error("没有生成任何预览页面");
+    }
+
+    if (previewBlobs.length > RESUME_MAX_PAGES) {
+      throw new Error(`简历最多支持 ${RESUME_MAX_PAGES} 页`);
+    }
+
+    const id = createId("resume");
+    const originalPath = `${currentUser.id}/${id}/original.${kind}`;
+    const previewPaths = previewBlobs.map(
+      (_, index) => `${currentUser.id}/${id}/preview-${String(index + 1).padStart(3, "0")}.jpg`
+    );
+
+    setResumeUploadStatus(`图片预览已生成，共 ${previewBlobs.length} 页，正在上传到私有云存储…`);
+
+    await uploadResumeObject(originalPath, file, getResumeContentType(kind));
+    uploadedPaths.push(originalPath);
+
+    for (let index = 0; index < previewBlobs.length; index += 1) {
+      await uploadResumeObject(previewPaths[index], previewBlobs[index], "image/jpeg");
+      uploadedPaths.push(previewPaths[index]);
+      setResumeUploadStatus(`正在上传预览图 ${index + 1} / ${previewBlobs.length}…`);
+    }
+
+    const now = new Date().toISOString();
+    const displayName = file.name.replace(/\.(pdf|docx)$/i, "");
+
+    data.resumes.unshift({
+      id,
+      name: displayName || file.name,
+      fileName: file.name,
+      kind,
+      fileSize: file.size,
+      pageCount: previewBlobs.length,
+      originalPath,
+      previewPaths,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    activeResumeId = id;
+    saveData();
+    setResumeUploadStatus("简历已上传，图片预览已生成。", "success");
+    switchView("resume");
+    await renderResume();
+
+    setTimeout(() => setResumeUploadStatus(), 2200);
+  } catch (error) {
+    console.error("上传简历失败：", error);
+
+    if (uploadedPaths.length) {
+      const { error: cleanupError } = await supabase
+        .storage
+        .from(RESUME_BUCKET)
+        .remove(uploadedPaths);
+
+      if (cleanupError) {
+        console.warn("清理未完成的简历文件失败：", cleanupError);
+      }
+    }
+
+    const message = String(error?.message || "未知错误");
+    const storageHint = /bucket|row-level|policy|storage|permission|not found/i.test(message)
+      ? " 请确认已经在 Supabase SQL Editor 执行更新包里的 supabase-resume-storage.sql。"
+      : "";
+
+    setResumeUploadStatus(`上传失败：${message}${storageHint}`, "error");
+  } finally {
+    uploadButton.disabled = false;
+    $("#resumeDocxRenderStage").innerHTML = "";
+  }
+}
+
+async function uploadResumeObject(path, body, contentType) {
+  const { error } = await supabase
+    .storage
+    .from(RESUME_BUCKET)
+    .upload(path, body, {
+      cacheControl: "3600",
+      contentType,
+      upsert: false
+    });
+
+  if (error) throw error;
+}
+
+let pdfjsLoader = null;
+
+async function loadPdfJs() {
+  if (!pdfjsLoader) {
+    pdfjsLoader = import(PDFJS_MODULE_URL)
+      .then(module => {
+        module.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        return module;
+      })
+      .catch(error => {
+        pdfjsLoader = null;
+        throw error;
+      });
+  }
+
+  return pdfjsLoader;
+}
+
+async function renderPdfPreviewBlobs(file) {
+  const pdfjsLib = await loadPdfJs();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const loadingTask = pdfjsLib.getDocument({ data: bytes });
+  const pdf = await loadingTask.promise;
+
+  try {
+    if (pdf.numPages > RESUME_MAX_PAGES) {
+      throw new Error(`简历最多支持 ${RESUME_MAX_PAGES} 页`);
+    }
+
+    const blobs = [];
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      setResumeUploadStatus(`正在生成 PDF 图片预览 ${pageNumber} / ${pdf.numPages}…`);
+
+      const page = await pdf.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const scale = Math.min(2.5, Math.max(1.4, 1400 / baseViewport.width));
+      const viewport = page.getViewport({ scale });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+
+      const context = canvas.getContext("2d", { alpha: false });
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      await page.render({ canvasContext: context, viewport }).promise;
+
+      blobs.push(await canvasToJpegBlob(canvas));
+      page.cleanup();
+    }
+
+    return blobs;
+  } finally {
+    await pdf.destroy();
+  }
+}
+
+async function renderDocxPreviewBlobs(file) {
+  if (!window.docx?.renderAsync) {
+    throw new Error("Word 预览组件加载失败，请刷新页面后重试");
+  }
+
+  if (typeof window.html2canvas !== "function") {
+    throw new Error("图片转换组件加载失败，请刷新页面后重试");
+  }
+
+  const stage = $("#resumeDocxRenderStage");
+  stage.innerHTML = "";
+
+  setResumeUploadStatus("正在解析 Word 文档…");
+
+  await window.docx.renderAsync(file, stage, null, {
+    inWrapper: true,
+    breakPages: true,
+    ignoreWidth: false,
+    ignoreHeight: false,
+    ignoreFonts: false,
+    renderHeaders: true,
+    renderFooters: true,
+    renderFootnotes: true,
+    renderEndnotes: true,
+    useBase64URL: true,
+    ignoreLastRenderedPageBreak: false
+  });
+
+  if (document.fonts?.ready) {
+    await document.fonts.ready;
+  }
+
+  await waitForImages(stage);
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+  let pages = [...stage.querySelectorAll(".docx-wrapper > section.docx")];
+
+  if (!pages.length) pages = [...stage.querySelectorAll("section.docx")];
+
+  if (!pages.length) {
+    const wrapper = stage.querySelector(".docx-wrapper");
+    if (wrapper) pages = [wrapper];
+  }
+
+  if (!pages.length) {
+    throw new Error("Word 文档解析完成，但没有识别到可预览页面");
+  }
+
+  if (pages.length > RESUME_MAX_PAGES) {
+    throw new Error(`简历最多支持 ${RESUME_MAX_PAGES} 页`);
+  }
+
+  const blobs = [];
+
+  for (let index = 0; index < pages.length; index += 1) {
+    setResumeUploadStatus(`正在生成 Word 图片预览 ${index + 1} / ${pages.length}…`);
+
+    const canvas = await window.html2canvas(pages[index], {
+      backgroundColor: "#ffffff",
+      scale: Math.min(2, Math.max(1.35, window.devicePixelRatio || 1)),
+      useCORS: true,
+      logging: false
+    });
+
+    blobs.push(await canvasToJpegBlob(canvas));
+  }
+
+  stage.innerHTML = "";
+  return blobs;
+}
+
+function waitForImages(container) {
+  const images = [...container.querySelectorAll("img")];
+
+  return Promise.all(
+    images.map(image => {
+      if (image.complete) return Promise.resolve();
+
+      return new Promise(resolve => {
+        image.addEventListener("load", resolve, { once: true });
+        image.addEventListener("error", resolve, { once: true });
+      });
+    })
+  );
+}
+
+function canvasToJpegBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => blob ? resolve(blob) : reject(new Error("图片预览生成失败")),
+      "image/jpeg",
+      0.92
+    );
+  });
+}
+
+async function downloadActiveResume() {
+  const item = getResumeById(activeResumeId);
+  if (!item) return;
+
+  try {
+    const { data: blob, error } = await supabase
+      .storage
+      .from(RESUME_BUCKET)
+      .download(item.originalPath);
+
+    if (error) throw error;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = item.fileName || `${item.name}.${item.kind}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    alert(`下载简历失败：${error?.message || "未知错误"}`);
+  }
+}
+
+async function deleteActiveResume() {
+  const item = getResumeById(activeResumeId);
+  if (!item) return;
+
+  if (!confirm(`确定删除简历「${item.name || item.fileName}」吗？原文件和图片预览都会从云端删除。`)) {
+    return;
+  }
+
+  const paths = [item.originalPath, ...item.previewPaths].filter(Boolean);
+
+  try {
+    if (paths.length) {
+      const { error } = await supabase
+        .storage
+        .from(RESUME_BUCKET)
+        .remove(paths);
+
+      if (error) throw error;
+    }
+
+    data.resumes = data.resumes.filter(row => row.id !== item.id);
+    activeResumeId = null;
+    saveData();
+    showToast("简历已删除");
+    await renderResume();
+  } catch (error) {
+    alert(`删除简历失败：${error?.message || "未知错误"}`);
   }
 }
 

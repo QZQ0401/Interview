@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="秋招 Tracker V3：投递、面试、日历、复盘、自动云同步和邮件提醒。" />
   <title>秋招 Tracker V3</title>
-  <link rel="stylesheet" href="./styles.css?v=3.2.1" />
+  <link rel="stylesheet" href="./styles.css?v=3.3.0" />
 </head>
 <body>
   <!-- 登录页 -->
@@ -86,6 +86,7 @@
         <button class="tab" data-view="applications">投递管理</button>
         <button class="tab" data-view="calendar">日历提醒</button>
         <button class="tab" data-view="questions">面试题库 / 复盘</button>
+        <button class="tab" data-view="resume">简历</button>
       </nav>
 
       <main>
@@ -204,6 +205,70 @@
 
             <div class="question-grid" id="questionGrid"></div>
             <input type="file" class="hidden" id="questionBankFile" accept=".json,application/json" />
+          </section>
+        </section>
+        <!-- V3.3 简历 -->
+        <section class="view" id="view-resume">
+          <section class="panel resume-panel">
+            <div class="panel-head head-wrap">
+              <div>
+                <h2>简历</h2>
+                <p>上传 PDF 或 Word（.docx），自动生成逐页图片预览并保存到私有云存储</p>
+              </div>
+              <button class="btn btn-primary" id="uploadResumeBtn">＋ 上传简历</button>
+            </div>
+
+            <input
+              type="file"
+              class="hidden"
+              id="resumeFile"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            />
+
+            <div class="resume-layout">
+              <aside class="resume-sidebar">
+                <div class="resume-sidebar-head">
+                  <strong>我的简历</strong>
+                  <span id="resumeCount">0 份</span>
+                </div>
+                <div class="resume-list" id="resumeList"></div>
+              </aside>
+
+              <div class="resume-preview-area">
+                <div class="resume-empty" id="resumeEmpty">
+                  <div class="resume-empty-icon">📄</div>
+                  <strong>还没有上传简历</strong>
+                  <p>支持 PDF 和现代 Word（.docx），上传后会先以图片形式逐页展示。</p>
+                  <button class="btn btn-primary" id="resumeEmptyUploadBtn">上传第一份简历</button>
+                </div>
+
+                <div class="resume-viewer hidden" id="resumeViewer">
+                  <div class="resume-viewer-toolbar">
+                    <div class="resume-viewer-title">
+                      <strong id="resumeViewerName">—</strong>
+                      <span id="resumeViewerMeta">—</span>
+                    </div>
+                    <div class="button-row">
+                      <button class="btn" id="downloadResumeBtn">下载原文件</button>
+                      <button class="btn btn-danger" id="deleteResumeBtn">删除</button>
+                    </div>
+                  </div>
+                  <div class="resume-pages" id="resumePreviewPages"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="resume-upload-status hidden" id="resumeUploadStatus"></div>
+            <div class="resume-privacy-note">
+              <span>🔒</span>
+              <div>
+                <strong>私有存储</strong>
+                <p>原始简历和预览图存放在当前账号自己的 Supabase Storage 目录中，页面通过临时授权链接读取。</p>
+              </div>
+            </div>
+
+            <!-- Word 转图片时使用的离屏渲染容器，不能使用 display:none -->
+            <div class="resume-docx-render-stage" id="resumeDocxRenderStage" aria-hidden="true"></div>
           </section>
         </section>
       </main>
@@ -403,12 +468,10 @@
 
   <div class="toast" id="toast"></div>
 
-<<<<<<< HEAD
-  <script src="./config.js"></script>
-  <script type="module" src="./app.js?v=ros2code-1"></script>
-=======
-  <script src="./config.js?v=3.2.1"></script>
-  <script type="module" src="./app.js?v=3.2.1"></script>
->>>>>>> 3a2c1fdcf35a5b77ec2913ddfea20265c8dfa868
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.4.0/dist/docx-preview.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="./config.js?v=3.3.0"></script>
+  <script type="module" src="./app.js?v=3.3.0"></script>
 </body>
 </html>
