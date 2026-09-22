@@ -3427,7 +3427,17 @@ async function renderPdfPreviewBlobs(file) {
 
     return blobs;
   } finally {
-    await pdf.destroy();
+    // PDF.js 6.3.289 removed PDFDocumentProxy.destroy().
+    // The loading task owns the worker lifecycle in current PDF.js versions.
+    if (typeof loadingTask.destroy === "function") {
+      await loadingTask.destroy();
+    } else if (typeof pdf.destroy === "function") {
+      // Compatibility with older PDF.js versions.
+      await pdf.destroy();
+    } else if (typeof pdf.cleanup === "function") {
+      // Last-resort cleanup for unusual/custom builds.
+      await pdf.cleanup();
+    }
   }
 }
 
