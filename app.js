@@ -867,10 +867,33 @@ function bindEvents() {
   $("#confirmApplicationImportBtn").addEventListener("click", confirmApplicationImport);
   $("#saveApplicationBtn").addEventListener("click", saveApplicationFromForm);
 
-  $("#applicationSearch").addEventListener("input", renderApplications);
-  $("#applicationStatusFilter").addEventListener("change", renderApplications);
-  $("#applicationPriorityFilter").addEventListener("change", renderApplications);
-  $("#applicationLocationFilter").addEventListener("change", renderApplications);
+  $("#applicationSearch").addEventListener("input", resetApplicationPageAndRender);
+  $("#applicationStatusFilter").addEventListener("change", resetApplicationPageAndRender);
+  $("#applicationPriorityFilter").addEventListener("change", resetApplicationPageAndRender);
+  $("#applicationLocationFilter").addEventListener("change", resetApplicationPageAndRender);
+
+  $("#applicationsTable").addEventListener("click", event => {
+    const button = event.target.closest("[data-application-page]");
+    if (!button || button.disabled) return;
+
+    const nextPage = Number(button.dataset.applicationPage);
+    if (!Number.isInteger(nextPage)) return;
+
+    applicationCurrentPage = nextPage;
+    renderApplications();
+  });
+
+  $("#applicationsTable").addEventListener("change", event => {
+    if (event.target.id !== "applicationPageSize") return;
+
+    const nextSize = Number(event.target.value);
+    if (!APPLICATION_PAGE_SIZES.includes(nextSize)) return;
+
+    applicationPageSize = nextSize;
+    applicationCurrentPage = 1;
+    localStorage.setItem(APPLICATION_PAGE_SIZE_KEY, String(nextSize));
+    renderApplications();
+  });
 
   $("#saveStageBtn").addEventListener("click", saveStageFromForm);
 
@@ -1152,6 +1175,75 @@ function renderDashboardUpcoming() {
 
 /* ========== 投递管理 ========== */
 
+/* V3.4.4 application table enhancement */
+const APPLICATION_PAGE_SIZE_KEY = "autumn_recruitment_application_page_size";
+const APPLICATION_PAGE_SIZES = [25, 50, 100];
+let applicationCurrentPage = 1;
+let applicationPageSize = Number(localStorage.getItem(APPLICATION_PAGE_SIZE_KEY)) || 50;
+if (!APPLICATION_PAGE_SIZES.includes(applicationPageSize)) applicationPageSize = 50;
+
+function resetApplicationPageAndRender() {
+  applicationCurrentPage = 1;
+  renderApplications();
+}
+
+function getInterviewStage(item, round) {
+  const patterns = {
+    1: /(一面|初面|第一面|第一轮|ai\s*面|ai面)/i,
+    2: /(二面|复面|第二面|第二轮)/i,
+    3: /(三面|终面|第三面|第三轮)/i
+  };
+  const pattern = patterns[round];
+  if (!pattern) return null;
+
+  return [...(item.stages || [])]
+    .filter(stage => pattern.test(`${stage.name || ""} ${stage.result || ""} ${stage.notes || ""}`))
+    .sort((a, b) =>
+      (b.date || "").localeCompare(a.date || "") ||
+      new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+    )[0] || null;
+}
+
+function normalizeInterviewSituation(stage, round) {
+  if (!stage) return "—";
+
+  const text = `${stage.name || ""} ${stage.result || ""} ${stage.notes || ""}`.toLowerCase();
+
+  // 失败结果必须优先判断，避免“已面试但未通过”被识别成“已面试”。
+  if (/(挂|未通过|不通过|淘汰|拒绝|fail|failed)/i.test(text)) {
+    return `${round}面挂`;
+  }
+
+  if (/(通过|pass|passed)/i.test(text)) return "已通过";
+
+  if (/(已面试|已面|面试完成|已完成|完成面试|面完)/i.test(text)) {
+    return "已面试";
+  }
+
+  return "待面试";
+}
+
+function interviewSituationClass(value) {
+  if (value === "已通过") return "is-passed";
+  if (value === "已面试") return "is-done";
+  if (value === "待面试") return "is-pending";
+  if (/面挂$/.test(value)) return "is-failed";
+  return "is-empty";
+}
+
+function buildApplicationPageNumbers(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set([1, totalPages, currentPage]);
+  for (let offset = -2; offset <= 2; offset += 1) {
+    const page = currentPage + offset;
+    if (page >= 1 && page <= totalPages) pages.add(page);
+  }
+  return [...pages].sort((a, b) => a - b);
+}
+
 function renderApplicationFilters() {
   const current = $("#applicationLocationFilter").value;
 
@@ -1197,6 +1289,7 @@ function renderApplications() {
   const rows = getFilteredApplications();
 
   if (!rows.length) {
+    applicationCurrentPage = 1;
     $("#applicationsTable").innerHTML = `
       <div class="empty-state">
         <div class="empty-emoji">📮</div>
@@ -1206,30 +1299,70 @@ function renderApplications() {
     return;
   }
 
+  const totalRows = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / applicationPageSize));
+  applicationCurrentPage = Math.min(Math.max(1, applicationCurrentPage), totalPages);
+  const startIndex = (applicationCurrentPage - 1) * applicationPageSize;
+  const endIndex = Math.min(startIndex + applicationPageSize, totalRows);
+  const pageRows = rows.slice(startIndex, endIndex);
+  const pageNumbers = buildApplicationPageNumbers(applicationCurrentPage, totalPages);
+
+  const pageButtons = pageNumbers.map((page, index) => {
+    const previous = pageNumbers[index - 1];
+    const ellipsis = previous && page - previous > 1
+      ? `<span class="application-page-ellipsis">…</span>`
+      : "";
+    return `${ellipsis}<button class="application-page-btn ${page === applicationCurrentPage ? "active" : ""}"
+      data-application-page="${page}" type="button">${page}</button>`;
+  }).join("");
+
   $("#applicationsTable").innerHTML = `
-    <table>
-      <thead><tr><th>公司 / 岗位</th><th>网站链接</th><th>投递时间</th><th>状态</th><th>当前进度</th><th>地点</th><th>最近更新</th><th>操作</th></tr></thead>
+    <div class="applications-table-scroll">
+    <table class="applications-table-v344">
+      <thead><tr><th class="application-seq-head">序号</th><th>公司 / 岗位</th><th>网站链接</th><th>投递时间</th><th>状态</th><th>当前进度</th><th>一面情况</th><th>二面情况</th><th>三面情况</th><th>地点</th><th>最近更新</th><th>操作</th></tr></thead>
       <tbody>
-        ${rows.map(item => {
-          const latestStage = [...item.stages]
+        ${pageRows.map((item, pageIndex) => {
+          const latestStage = [...(item.stages || [])]
             .sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0];
+          const firstInterview = normalizeInterviewSituation(getInterviewStage(item, 1), 1);
+          const secondInterview = normalizeInterviewSituation(getInterviewStage(item, 2), 2);
+          const thirdInterview = normalizeInterviewSituation(getInterviewStage(item, 3), 3);
           const jobUrl = String(item.jobUrl || "").trim();
           const safeJobUrl = /^https?:\/\//i.test(jobUrl) ? jobUrl : "";
+          const sequence = startIndex + pageIndex + 1;
 
           return `
             <tr>
+              <td class="application-seq">${sequence}</td>
               <td><div class="company-cell"><div class="company-avatar">${escapeHtml(getInitial(item.company))}</div><div><button class="link-button" onclick="openDrawer('${item.id}')">${escapeHtml(item.company)}</button><div class="company-meta">${escapeHtml(item.role)}</div></div></div></td>
               <td>${safeJobUrl ? `<a class="link-button" href="${escapeHtml(safeJobUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;white-space:nowrap">打开网站 ↗</a>` : "—"}</td>
               <td>${escapeHtml(formatDate(item.applyDate))}</td>
               <td><span class="status-badge status-${item.status}"><span class="status-dot"></span>${escapeHtml(STATUS_MAP[item.status])}</span></td>
               <td>${escapeHtml(latestStage?.name || "—")}</td>
+              <td class="interview-situation-cell"><span class="interview-state ${interviewSituationClass(firstInterview)}">${escapeHtml(firstInterview)}</span></td>
+              <td class="interview-situation-cell"><span class="interview-state ${interviewSituationClass(secondInterview)}">${escapeHtml(secondInterview)}</span></td>
+              <td class="interview-situation-cell"><span class="interview-state ${interviewSituationClass(thirdInterview)}">${escapeHtml(thirdInterview)}</span></td>
               <td>${escapeHtml(item.location || "—")}</td>
               <td>${escapeHtml(formatDateTime(item.updatedAt))}</td>
               <td><button class="btn btn-sm" onclick="editApplication('${item.id}')">编辑</button></td>
             </tr>`;
         }).join("")}
       </tbody>
-    </table>`;
+    </table>
+    </div>
+    <div class="application-pagination">
+      <div class="application-pagination-summary">当前显示 <strong>${startIndex + 1}-${endIndex}</strong> 条，共 <strong>${totalRows}</strong> 条投递</div>
+      <div class="application-page-size"><span>每页</span>
+        <select class="field-select" id="applicationPageSize">
+          ${APPLICATION_PAGE_SIZES.map(size => `<option value="${size}" ${size === applicationPageSize ? "selected" : ""}>${size} 条</option>`).join("")}
+        </select>
+      </div>
+      <div class="application-page-controls">
+        <button class="application-page-btn application-page-nav" type="button" data-application-page="${applicationCurrentPage - 1}" ${applicationCurrentPage <= 1 ? "disabled" : ""}>← 上一页</button>
+        ${pageButtons}
+        <button class="application-page-btn application-page-nav" type="button" data-application-page="${applicationCurrentPage + 1}" ${applicationCurrentPage >= totalPages ? "disabled" : ""}>下一页 →</button>
+      </div>
+    </div>`;
 }
 
 /* ========== V3.4 外部投递导入 ========== */

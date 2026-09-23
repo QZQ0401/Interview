@@ -126,3 +126,29 @@
 .status-terminated{color:#7c4a2d;background:#fbf2ec}
 @media(max-width:650px){.application-head-actions{width:100%}.application-head-actions .btn{flex:1}.import-summary-grid{grid-template-columns:1fr 1fr}.import-preview-head{align-items:flex-start;flex-direction:column}}
 
+/* V3.4.4 application table enhancement */
+#applicationsTable.table-wrap{overflow:hidden}
+#applicationsTable .applications-table-scroll{overflow-x:auto;overflow-y:hidden}
+#applicationsTable .applications-table-v344{min-width:1540px}
+#applicationsTable .application-seq-head,#applicationsTable .application-seq{width:52px;min-width:52px;text-align:center;font-variant-numeric:tabular-nums}
+#applicationsTable .application-seq{font-weight:750;color:var(--brand2)}
+#applicationsTable .interview-situation-cell{min-width:118px;max-width:170px;white-space:normal;line-height:1.45}
+#applicationsTable .interview-state{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:4px 8px;border-radius:999px;font-size:9px;font-weight:700;white-space:nowrap}
+#applicationsTable .interview-state.is-pending{background:#fff7dc;color:#9a6800}
+#applicationsTable .interview-state.is-done{background:#eef3f8;color:#536477}
+#applicationsTable .interview-state.is-passed{background:#e8f6ee;color:#20764a}
+#applicationsTable .interview-state.is-failed{background:#fff0f0;color:#b44747}
+#applicationsTable .interview-state.is-empty{background:transparent;color:var(--muted);padding-left:0;padding-right:0;min-width:auto}
+.application-pagination{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;padding:11px 12px;background:#fafbfa;border-top:1px solid var(--line)}
+.application-pagination-summary{font-size:10px;color:var(--muted)}
+.application-pagination-summary strong{color:var(--text);font-variant-numeric:tabular-nums}
+.application-page-size{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted)}
+.application-page-size .field-select{width:auto;min-width:82px;padding:7px 28px 7px 9px}
+.application-page-controls{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.application-page-btn{min-width:31px;height:31px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);font-size:9px;cursor:pointer}
+.application-page-btn:hover:not(:disabled){border-color:var(--brand);color:var(--brand)}
+.application-page-btn.active{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:750}
+.application-page-btn:disabled{opacity:.4;cursor:not-allowed}
+.application-page-nav{min-width:68px}
+.application-page-ellipsis{font-size:10px;color:var(--muted);padding:0 2px}
+@media(max-width:760px){.application-pagination{align-items:flex-start}.application-page-controls{width:100%}}
