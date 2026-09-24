@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="秋招 Tracker V3.4.8：投递、面试、日历、复盘、自动云同步和邮件提醒。" />
-  <title>秋招 Tracker V3.4.8</title>
-  <link rel="stylesheet" href="./styles.css?v=3.4.8" />
+  <meta name="description" content="秋招 Tracker V3.4.9：投递、面试、日历、复盘、自动云同步和邮件提醒。" />
+  <title>秋招 Tracker V3.4.9</title>
+  <link rel="stylesheet" href="./styles.css?v=3.4.9" />
 </head>
 <body>
   <!-- 登录页 -->
@@ -13,7 +13,7 @@
     <div class="auth-card">
       <div class="auth-logo">🍂</div>
       <div class="eyebrow">AUTUMN RECRUITMENT</div>
-      <h1>秋招 Tracker <span class="brand-version-v347">V3.4.8</span></h1>
+      <h1>秋招 Tracker <span class="brand-version-v347">V3.4.9</span></h1>
       <p class="auth-subtitle">登录后自动同步你的投递、日历和面试复盘。</p>
 
       <div class="config-error hidden" id="configError">
@@ -55,7 +55,7 @@
         <div class="brand-wrap">
           <div class="brand-icon">🍂</div>
           <div>
-            <h1>秋招 Tracker <span class="version-tag">V3.4.8</span></h1>
+            <h1>秋招 Tracker <span class="version-tag">V3.4.9</span></h1>
             <p>投递 · 日历 · 面试题库 · 自动云同步 · 邮件提醒</p>
           </div>
         </div>
@@ -142,6 +142,7 @@
 
             <div class="toolbar app-toolbar">
               <div class="search-wrap"><span>⌕</span><input id="applicationSearch" class="field" placeholder="搜索公司、岗位、地点、渠道..." /></div>
+              <select id="applicationInterviewFilter" class="field-select application-interview-filter" title="按面试情况筛选"><option value="">全部面试情况</option><option value="passed">已通过</option><option value="interviewed">已面试</option><option value="pending">待面试</option><option value="round1_failed">一面挂</option><option value="round2_failed">二面挂</option><option value="round3_failed">三面挂</option></select>
               <select id="applicationSortOrder" class="field-select application-sort-select" title="按投递时间排序"><option value="apply_desc">投递时间：新 → 旧</option><option value="apply_asc">投递时间：旧 → 新</option></select>
             <select id="applicationStatusFilter" class="field-select"></select>
               <select id="applicationPriorityFilter" class="field-select"></select>
@@ -522,6 +523,6 @@
   <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.4.0/dist/docx-preview.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="./config.js?v=3.4.0"></script>
-  <script type="module" src="./app.js?v=3.4.8"></script>
+  <script type="module" src="./app.js?v=3.4.9"></script>
 </body>
 </html>
