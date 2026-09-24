@@ -365,6 +365,9 @@ function normalizeApplication(item = {}) {
     priority: PRIORITY_MAP[item.priority] ? item.priority : "medium",
     status: STATUS_MAP[item.status] ? item.status : "applied",
     expectedResult: item.expectedResult || "",
+    interview1Status: normalizeInterviewStatusValue(item.interview1Status),
+    interview2Status: normalizeInterviewStatusValue(item.interview2Status),
+    interview3Status: normalizeInterviewStatusValue(item.interview3Status),
     jobUrl: item.jobUrl || "",
     note: item.note || "",
     createdAt: item.createdAt || now,
@@ -871,6 +874,7 @@ function bindEvents() {
   $("#applicationStatusFilter").addEventListener("change", resetApplicationPageAndRender);
   $("#applicationPriorityFilter").addEventListener("change", resetApplicationPageAndRender);
   $("#applicationLocationFilter").addEventListener("change", resetApplicationPageAndRender);
+  setTimeout(() => initApplicationTableEnhancements(), 0);
 
   $("#applicationsTable").addEventListener("click", event => {
     const button = event.target.closest("[data-application-page]");
@@ -1173,6 +1177,39 @@ function renderDashboardUpcoming() {
     : `<div class="muted" style="font-size:10px">未来 7 天没有待办。</div>`;
 }
 
+/* V3.4.6 application table controls */
+const APPLICATION_SORT_KEY = "autumn_recruitment_application_sort";
+const APPLICATION_COLUMN_WIDTHS_KEY = "autumn_recruitment_application_column_widths";
+const APPLICATION_COLUMN_KEYS = ["sequence","company","website","applyDate","status","progress","interview1","interview2","interview3","location","updatedAt","actions"];
+const APPLICATION_COLUMN_DEFAULT_WIDTHS = {sequence:58,company:180,website:105,applyDate:105,status:95,progress:105,interview1:88,interview2:88,interview3:88,location:90,updatedAt:112,actions:82};
+const APPLICATION_COLUMN_MIN_WIDTHS = {sequence:48,company:130,website:82,applyDate:92,status:78,progress:82,interview1:76,interview2:76,interview3:76,location:70,updatedAt:96,actions:72};
+const INTERVIEW_STATUS_LABELS = {pending:"待面试",interviewed:"已面试",passed:"已通过",failed:"面挂"};
+let applicationSortOrder = localStorage.getItem(APPLICATION_SORT_KEY) || "apply_desc";
+if (!["apply_asc","apply_desc"].includes(applicationSortOrder)) applicationSortOrder = "apply_desc";
+function normalizeInterviewStatusValue(value){ return ["pending","interviewed","passed","failed"].includes(value) ? value : ""; }
+function explicitInterviewStatusLabel(value,round){ const v=normalizeInterviewStatusValue(value); if(!v)return ""; return v==="failed"?`${round}面挂`:(INTERVIEW_STATUS_LABELS[v]||""); }
+function getApplicationInterviewDisplay(item,round){ const v=normalizeInterviewStatusValue(item[`interview${round}Status`]); if(v)return explicitInterviewStatusLabel(v,round); if(typeof getInterviewStage==="function"&&typeof normalizeInterviewSituation==="function")return normalizeInterviewSituation(getInterviewStage(item,round),round); return "—"; }
+function loadApplicationColumnWidths(){ try{const p=JSON.parse(localStorage.getItem(APPLICATION_COLUMN_WIDTHS_KEY)||"{}");return p&&typeof p==="object"?p:{};}catch{return {};} }
+function saveApplicationColumnWidths(w){ localStorage.setItem(APPLICATION_COLUMN_WIDTHS_KEY,JSON.stringify(w)); }
+function applyApplicationColumnWidths(){
+ const root=$("#applicationsTable"),table=root?.querySelector("table"); if(!root||!table)return; const widths=loadApplicationColumnWidths(),rows=table.querySelectorAll("tr");
+ APPLICATION_COLUMN_KEYS.forEach((key,index)=>{const width=Math.max(APPLICATION_COLUMN_MIN_WIDTHS[key]||60,Number(widths[key])||APPLICATION_COLUMN_DEFAULT_WIDTHS[key]||100);rows.forEach(row=>{const cell=row.children[index];if(!cell)return;cell.style.width=`${width}px`;cell.style.minWidth=`${width}px`;cell.style.maxWidth=`${width}px`;});});
+ const sw=Math.max(APPLICATION_COLUMN_MIN_WIDTHS.sequence,Number(widths.sequence)||APPLICATION_COLUMN_DEFAULT_WIDTHS.sequence); const cw=Math.max(APPLICATION_COLUMN_MIN_WIDTHS.company,Number(widths.company)||APPLICATION_COLUMN_DEFAULT_WIDTHS.company); const aw=Math.max(APPLICATION_COLUMN_MIN_WIDTHS.actions,Number(widths.actions)||APPLICATION_COLUMN_DEFAULT_WIDTHS.actions);
+ root.style.setProperty("--app-seq-width",`${sw}px`);root.style.setProperty("--app-company-width",`${cw}px`);root.style.setProperty("--app-action-width",`${aw}px`);
+}
+function installApplicationColumnResizers(){
+ const root=$("#applicationsTable"),table=root?.querySelector("table");if(!root||!table)return;applyApplicationColumnWidths();
+ table.querySelectorAll("thead th").forEach((th,index)=>{if(th.querySelector(".column-resizer"))return;const key=APPLICATION_COLUMN_KEYS[index];if(!key)return;const h=document.createElement("span");h.className="column-resizer";h.title="拖动调整列宽";h.setAttribute("aria-hidden","true");th.appendChild(h);
+ h.addEventListener("pointerdown",event=>{event.preventDefault();event.stopPropagation();const sx=event.clientX,sw=th.getBoundingClientRect().width,min=APPLICATION_COLUMN_MIN_WIDTHS[key]||60,widths=loadApplicationColumnWidths();h.classList.add("is-resizing");root.classList.add("is-column-resizing");h.setPointerCapture?.(event.pointerId);
+ const move=e=>{widths[key]=Math.max(min,Math.round(sw+e.clientX-sx));saveApplicationColumnWidths(widths);applyApplicationColumnWidths();}; const up=e=>{h.classList.remove("is-resizing");root.classList.remove("is-column-resizing");h.releasePointerCapture?.(e.pointerId);h.removeEventListener("pointermove",move);h.removeEventListener("pointerup",up);h.removeEventListener("pointercancel",up);};h.addEventListener("pointermove",move);h.addEventListener("pointerup",up);h.addEventListener("pointercancel",up);});
+ });
+}
+function initApplicationTableEnhancements(){
+ const root=$("#applicationsTable");if(!root||root.dataset.v346Ready==="1")return;root.dataset.v346Ready="1";new MutationObserver(()=>installApplicationColumnResizers()).observe(root,{childList:true,subtree:true});installApplicationColumnResizers();
+ const s=$("#applicationSortOrder");if(s){s.value=applicationSortOrder;s.addEventListener("change",()=>{applicationSortOrder=s.value;localStorage.setItem(APPLICATION_SORT_KEY,applicationSortOrder);if(typeof resetApplicationPageAndRender==="function")resetApplicationPageAndRender();else renderApplications();});}
+}
+
+
 /* ========== 投递管理 ========== */
 
 /* V3.4.4 application table enhancement */
@@ -1263,7 +1300,6 @@ function getFilteredApplications() {
   const status = $("#applicationStatusFilter").value;
   const priority = $("#applicationPriorityFilter").value;
   const location = $("#applicationLocationFilter").value;
-  const weight = { high: 3, medium: 2, low: 1 };
 
   return [...data.applications]
     .filter(item => {
@@ -1280,8 +1316,12 @@ function getFilteredApplications() {
       );
     })
     .sort((a, b) => {
-      const p = weight[b.priority] - weight[a.priority];
-      return p || (new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+      const direction = applicationSortOrder === "apply_asc" ? 1 : -1;
+      const dateCompare = String(a.applyDate || "").localeCompare(String(b.applyDate || ""));
+      if (dateCompare) return dateCompare * direction;
+      const createdCompare = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+      if (createdCompare) return createdCompare * direction;
+      return String(a.id || "").localeCompare(String(b.id || "")) * direction;
     });
 }
 
@@ -1324,9 +1364,9 @@ function renderApplications() {
         ${pageRows.map((item, pageIndex) => {
           const latestStage = [...(item.stages || [])]
             .sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0];
-          const firstInterview = normalizeInterviewSituation(getInterviewStage(item, 1), 1);
-          const secondInterview = normalizeInterviewSituation(getInterviewStage(item, 2), 2);
-          const thirdInterview = normalizeInterviewSituation(getInterviewStage(item, 3), 3);
+          const firstInterview = getApplicationInterviewDisplay(item, 1);
+          const secondInterview = getApplicationInterviewDisplay(item, 2);
+          const thirdInterview = getApplicationInterviewDisplay(item, 3);
           const jobUrl = String(item.jobUrl || "").trim();
           const safeJobUrl = /^https?:\/\//i.test(jobUrl) ? jobUrl : "";
           const sequence = startIndex + pageIndex + 1;
@@ -2092,6 +2132,9 @@ function openAddApplicationModal() {
   $("#status").value = "applied";
   $("#priority").value = "medium";
   $("#applyDate").value = todayKey();
+  $("#interview1Status").value = "";
+  $("#interview2Status").value = "";
+  $("#interview3Status").value = "";
   $("#applicationModalTitle").textContent = "新增投递";
   openModal("applicationModal");
 }
@@ -2111,6 +2154,9 @@ function editApplication(id) {
   $("#priority").value = item.priority;
   $("#status").value = item.status;
   $("#expectedResult").value = item.expectedResult;
+  $("#interview1Status").value = normalizeInterviewStatusValue(item.interview1Status);
+  $("#interview2Status").value = normalizeInterviewStatusValue(item.interview2Status);
+  $("#interview3Status").value = normalizeInterviewStatusValue(item.interview3Status);
   $("#jobUrl").value = item.jobUrl;
   $("#note").value = item.note;
   $("#applicationModalTitle").textContent = "编辑投递";
@@ -2134,6 +2180,9 @@ function saveApplicationFromForm() {
     priority: $("#priority").value,
     status: $("#status").value,
     expectedResult: $("#expectedResult").value.trim(),
+    interview1Status: normalizeInterviewStatusValue($("#interview1Status").value),
+    interview2Status: normalizeInterviewStatusValue($("#interview2Status").value),
+    interview3Status: normalizeInterviewStatusValue($("#interview3Status").value),
     jobUrl: $("#jobUrl").value.trim(),
     note: $("#note").value.trim()
   };

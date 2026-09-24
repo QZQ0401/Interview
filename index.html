@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="秋招 Tracker V3：投递、面试、日历、复盘、自动云同步和邮件提醒。" />
   <title>秋招 Tracker V3</title>
-  <link rel="stylesheet" href="./styles.css?v=3.4.4" />
+  <link rel="stylesheet" href="./styles.css?v=3.4.6" />
 </head>
 <body>
   <!-- 登录页 -->
@@ -145,6 +145,7 @@
               <select id="applicationStatusFilter" class="field-select"></select>
               <select id="applicationPriorityFilter" class="field-select"></select>
               <select id="applicationLocationFilter" class="field-select"></select>
+              <select id="applicationSortOrder" class="field-select application-sort-select" title="按投递时间排序"><option value="apply_desc">投递时间：新 → 旧</option><option value="apply_asc">投递时间：旧 → 新</option></select>
             </div>
 
             <div class="table-wrap" id="applicationsTable"></div>
@@ -333,6 +334,11 @@
       <label>公司优先级<select class="field-select" id="priority"></select></label>
       <label>当前状态<select class="field-select" id="status"></select></label>
       <label>最终结果<input class="field" id="expectedResult" placeholder="Offer / 拒绝 / 待定..." /></label>
+      <div class="interview-status-fields"><div class="interview-status-title">面试轮次状态</div>
+        <label>一面情况<select class="field-select" id="interview1Status"><option value="">— 未设置 —</option><option value="pending">待面试</option><option value="interviewed">已面试</option><option value="passed">已通过</option><option value="failed">一面挂</option></select></label>
+        <label>二面情况<select class="field-select" id="interview2Status"><option value="">— 未设置 —</option><option value="pending">待面试</option><option value="interviewed">已面试</option><option value="passed">已通过</option><option value="failed">二面挂</option></select></label>
+        <label>三面情况<select class="field-select" id="interview3Status"><option value="">— 未设置 —</option><option value="pending">待面试</option><option value="interviewed">已面试</option><option value="passed">已通过</option><option value="failed">三面挂</option></select></label>
+      </div>
       <label class="full">岗位链接<input class="field" id="jobUrl" type="url" placeholder="https://..." /></label>
       <label class="full">备注<textarea class="field-textarea" id="note"></textarea></label>
     </form></div>
@@ -516,6 +522,6 @@
   <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.4.0/dist/docx-preview.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="./config.js?v=3.4.0"></script>
-  <script type="module" src="./app.js?v=3.4.4"></script>
+  <script type="module" src="./app.js?v=3.4.6"></script>
 </body>
 </html>

@@ -152,3 +152,63 @@
 .application-page-nav{min-width:68px}
 .application-page-ellipsis{font-size:10px;color:var(--muted);padding:0 2px}
 @media(max-width:760px){.application-pagination{align-items:flex-start}.application-page-controls{width:100%}}
+
+/* V3.4.5 sticky application columns */
+#applicationsTable {
+  --app-seq-width: 58px;
+  --app-company-width: 230px;
+  --app-action-width: 82px;
+}
+#applicationsTable th:nth-child(1), #applicationsTable td:nth-child(1) {
+  position: sticky; left: 0;
+  width: var(--app-seq-width); min-width: var(--app-seq-width); max-width: var(--app-seq-width);
+  background: var(--card, #fff);
+}
+#applicationsTable th:nth-child(2), #applicationsTable td:nth-child(2) {
+  position: sticky; left: var(--app-seq-width);
+  width: var(--app-company-width); min-width: var(--app-company-width); max-width: var(--app-company-width);
+  background: var(--card, #fff);
+  box-shadow: 8px 0 12px -12px rgba(15,40,30,.55);
+}
+#applicationsTable th:last-child, #applicationsTable td:last-child {
+  position: sticky; right: 0;
+  width: var(--app-action-width); min-width: var(--app-action-width); max-width: var(--app-action-width);
+  background: var(--card, #fff);
+  text-align: center; white-space: nowrap;
+  box-shadow: -8px 0 12px -12px rgba(15,40,30,.55);
+}
+#applicationsTable thead th { z-index: 4; }
+#applicationsTable thead th:nth-child(1),
+#applicationsTable thead th:nth-child(2),
+#applicationsTable thead th:last-child { z-index: 7; }
+#applicationsTable tbody td:nth-child(1),
+#applicationsTable tbody td:nth-child(2),
+#applicationsTable tbody td:last-child { z-index: 3; }
+#applicationsTable td:last-child .btn,
+#applicationsTable td:last-child button { position: relative; z-index: 1; }
+#applicationsTable tbody tr:hover td:nth-child(1),
+#applicationsTable tbody tr:hover td:nth-child(2),
+#applicationsTable tbody tr:hover td:last-child { background: #f8fbf9; }
+@media (max-width: 900px) {
+  #applicationsTable {
+    --app-seq-width: 50px;
+    --app-company-width: 190px;
+    --app-action-width: 76px;
+  }
+}
+
+/* V3.4.6 application table controls */
+#applicationsTable table { table-layout: fixed; }
+#applicationsTable th { position: relative; user-select: none; }
+#applicationsTable .column-resizer { position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:12; touch-action:none; }
+#applicationsTable .column-resizer::after { content:""; position:absolute; top:24%; bottom:24%; left:3px; width:1px; background:transparent; }
+#applicationsTable th:hover .column-resizer::after, #applicationsTable .column-resizer.is-resizing::after { background:#7b9488; }
+#applicationsTable.is-column-resizing, #applicationsTable.is-column-resizing * { cursor:col-resize !important; }
+#applicationsTable td, #applicationsTable th { overflow:hidden; text-overflow:ellipsis; }
+#applicationsTable .company-cell, #applicationsTable .company-cell > div:last-child { min-width:0; }
+#applicationsTable .company-cell .link-button, #applicationsTable .company-cell .company-meta { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.application-sort-select { min-width:145px; }
+.interview-status-fields { grid-column:1/-1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; padding:12px; border:1px solid #e2e8e4; border-radius:12px; background:#fafcfb; }
+.interview-status-fields .interview-status-title { grid-column:1/-1; font-weight:700; font-size:12px; }
+.interview-status-fields label { min-width:0; }
+@media (max-width:700px) { .interview-status-fields { grid-template-columns:1fr; } .interview-status-fields .interview-status-title { grid-column:1; } }
