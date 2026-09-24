@@ -257,3 +257,29 @@
 .application-modal-footer-v348{justify-content:space-between!important}
 .application-modal-actions-v348{display:flex;gap:8px;align-items:center}
 #deleteApplicationBtn{margin-right:auto}
+
+/* V3.4.9 */
+
+/* 版本号更醒目 */
+.version-tag{
+  font-size:13px!important;
+  font-weight:850!important;
+  padding:4px 8px!important;
+  margin-left:7px!important;
+  border-radius:999px!important;
+  line-height:1!important;
+}
+
+/* 搜索框缩短，新增“面试情况”筛选；桌面端仍保持一行 */
+.app-toolbar{
+  grid-template-columns:minmax(240px,1fr) 142px 126px 126px 118px 118px!important;
+  gap:8px!important;
+}
+#applicationInterviewFilter{min-width:0!important;width:100%!important}
+@media(max-width:900px){
+  .app-toolbar{grid-template-columns:minmax(210px,1fr) 136px 118px 118px 112px 112px!important}
+}
+@media(max-width:760px){
+  .app-toolbar{grid-template-columns:1fr 1fr!important}
+  .app-toolbar .search-wrap{grid-column:1/-1!important}
+}

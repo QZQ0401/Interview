@@ -897,6 +897,7 @@ if(applicationModalV348)new MutationObserver(syncApplicationDeleteButtonV348).ob
 setTimeout(()=>syncApplicationDeleteButtonV348(),0);
 
   $("#applicationSearch").addEventListener("input", resetApplicationPageAndRender);
+  $("#applicationInterviewFilter").addEventListener("change", resetApplicationPageAndRender);
   $("#applicationStatusFilter").addEventListener("change", resetApplicationPageAndRender);
   $("#applicationPriorityFilter").addEventListener("change", resetApplicationPageAndRender);
   $("#applicationLocationFilter").addEventListener("change", resetApplicationPageAndRender);
@@ -1336,6 +1337,53 @@ function interviewSituationClass(value) {
   return "is-empty";
 }
 
+/* V3.4.9 */
+
+/* 当前进度：由总体状态 + 三轮面试状态自动推导。
+   状态看“大阶段”，当前进度看“具体走到哪一步”。 */
+function deriveApplicationProgressV349(item){
+  const s1=getApplicationInterviewDisplay(item,1);
+  const s2=getApplicationInterviewDisplay(item,2);
+  const s3=getApplicationInterviewDisplay(item,3);
+  const situations=[s1,s2,s3];
+
+  if(item.status==="offer") return "Offer";
+  if(["rejected","terminated","withdrawn"].includes(item.status) || situations.some(v=>/面挂$/.test(v))) return "流程结束";
+  if(item.status==="hr") return "HR 面";
+
+  /* 有更高轮次记录时，以更高轮次作为当前节点 */
+  if(s3 && s3!=="—") return "三面";
+  if(s2 && s2!=="—") return "二面";
+  if(s1 && s1!=="—") return "一面";
+
+  /* 兼容旧 stages 中的测评 / 笔试 / AI 面信息 */
+  const stageText=[...(item.stages||[])]
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||"") ||
+      new Date(b.updatedAt||0).getTime()-new Date(a.updatedAt||0).getTime())
+    .map(stage=>`${stage.name||""} ${stage.result||""} ${stage.notes||""}`)
+    .join(" ");
+  if(/ai\s*面|ai面/i.test(stageText)) return "AI 面";
+  if(/笔试/i.test(stageText) || item.status==="test") return "笔试";
+  if(/测评/i.test(stageText)) return "测评";
+  if(item.status==="interview") return "待面试";
+  if(item.status==="applied" || item.status==="preparing" || item.status==="silent") return "待处理";
+  return "待更新";
+}
+
+/* 面试情况筛选使用表格中实际显示的三轮状态，因此兼容显式状态和旧 stages。 */
+function applicationInterviewMatchesV349(item,filter){
+  if(!filter)return true;
+  const values=[1,2,3].map(round=>getApplicationInterviewDisplay(item,round));
+  if(filter==="failed") return values.some(v=>/^[一二三]面挂$/.test(v));
+  if(filter==="passed") return values.includes("已通过");
+  if(filter==="interviewed") return values.includes("已面试");
+  if(filter==="pending") return values.includes("待面试");
+  if(filter==="round1_failed") return values.includes("一面挂");
+  if(filter==="round2_failed") return values.includes("二面挂");
+  if(filter==="round3_failed") return values.includes("三面挂");
+  return true;
+}
+
 function buildApplicationPageNumbers(currentPage, totalPages) {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -1366,6 +1414,7 @@ function renderApplicationFilters() {
 function getFilteredApplications() {
   const keyword = $("#applicationSearch").value.trim().toLowerCase();
   const status = $("#applicationStatusFilter").value;
+  const interviewFilter = $("#applicationInterviewFilter")?.value || "";
   const priority = $("#applicationPriorityFilter").value;
   const location = $("#applicationLocationFilter").value;
 
@@ -1379,6 +1428,7 @@ function getFilteredApplications() {
       return (
         (!keyword || text.includes(keyword)) &&
         (!status || item.status === status) &&
+        applicationInterviewMatchesV349(item, interviewFilter) &&
         (!priority || item.priority === priority) &&
         (!location || item.location === location)
       );
@@ -1446,7 +1496,7 @@ function renderApplications() {
               <td>${safeJobUrl ? `<a class="link-button" href="${escapeHtml(safeJobUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;white-space:nowrap">打开网站 ↗</a>` : "—"}</td>
               <td>${escapeHtml(formatDate(item.applyDate))}</td>
               <td><span class="status-badge status-${item.status}"><span class="status-dot"></span>${escapeHtml(STATUS_MAP[item.status])}</span></td>
-              <td>${escapeHtml(latestStage?.name || "—")}</td>
+              <td>${escapeHtml(deriveApplicationProgressV349(item))}</td>
               <td class="interview-situation-cell"><span class="interview-state ${interviewSituationClass(firstInterview)}">${escapeHtml(firstInterview)}</span></td>
               <td class="interview-situation-cell"><span class="interview-state ${interviewSituationClass(secondInterview)}">${escapeHtml(secondInterview)}</span></td>
               <td class="interview-situation-cell"><span class="interview-state ${interviewSituationClass(thirdInterview)}">${escapeHtml(thirdInterview)}</span></td>
