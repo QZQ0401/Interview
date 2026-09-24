@@ -212,3 +212,29 @@
 .interview-status-fields .interview-status-title { grid-column:1/-1; font-weight:700; font-size:12px; }
 .interview-status-fields label { min-width:0; }
 @media (max-width:700px) { .interview-status-fields { grid-template-columns:1fr; } .interview-status-fields .interview-status-title { grid-column:1; } }
+
+/* V3.4.7 consolidated UI */
+.app-toolbar{display:grid!important;grid-template-columns:minmax(300px,1fr) 150px 128px 128px 128px!important;gap:8px!important;align-items:center!important}
+.app-toolbar .search-wrap{grid-column:auto!important;min-width:0!important}
+.app-toolbar .field-select,.app-toolbar .application-sort-select{width:100%!important;min-width:0!important;grid-column:auto!important;grid-row:auto!important}
+@media(max-width:760px){.app-toolbar{grid-template-columns:1fr 1fr!important}.app-toolbar .search-wrap{grid-column:1/-1!important}}
+@media(max-width:520px){.app-toolbar{grid-template-columns:1fr!important}.app-toolbar .search-wrap{grid-column:auto!important}}
+
+#applicationsTable table{font-size:15px!important}
+#applicationsTable th{font-size:13.5px!important;font-weight:700!important}
+#applicationsTable td{font-size:14.5px!important;line-height:1.35!important}
+#applicationsTable .company-cell,#applicationsTable .company-cell .link-button{font-size:14.5px!important}
+#applicationsTable .company-meta{font-size:12px!important}
+#applicationsTable .status-badge,#applicationsTable .priority-badge,#applicationsTable .interview-state{font-size:12px!important}
+#applicationsTable .btn,#applicationsTable button{font-size:12px!important}
+
+#applicationsTable .applications-table-v344{table-layout:fixed!important;width:max-content!important;min-width:100%!important;max-width:none!important}
+#applicationsTable .applications-table-v344 th,#applicationsTable .applications-table-v344 td{box-sizing:border-box!important;flex:none!important}
+#applicationsTable th,#applicationsTable td{padding-left:5px!important;padding-right:5px!important}
+#applicationsTable .interview-situation-cell{min-width:0!important;max-width:none!important;white-space:nowrap!important}
+#applicationsTable .interview-state{min-width:0!important;padding:4px 6px!important}
+#applicationsTable th:nth-child(4),#applicationsTable td:nth-child(4){white-space:nowrap!important}
+#applicationsTable{--app-seq-width:46px;--app-company-width:150px;--app-action-width:66px}
+
+/* 顶部真实版本号 */
+.brand-version-v347{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;padding:3px 7px;border-radius:999px;background:#e8f3ed;color:#1f6f4a;font-size:11px;font-weight:800;line-height:1;vertical-align:middle;white-space:nowrap}

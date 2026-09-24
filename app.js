@@ -1186,6 +1186,48 @@ const APPLICATION_COLUMN_MIN_WIDTHS = {sequence:48,company:130,website:82,applyD
 const INTERVIEW_STATUS_LABELS = {pending:"待面试",interviewed:"已面试",passed:"已通过",failed:"面挂"};
 let applicationSortOrder = localStorage.getItem(APPLICATION_SORT_KEY) || "apply_desc";
 if (!["apply_asc","apply_desc"].includes(applicationSortOrder)) applicationSortOrder = "apply_desc";
+/* V3.4.7 consolidated UI */
+Object.assign(APPLICATION_COLUMN_DEFAULT_WIDTHS,{sequence:46,company:150,website:72,applyDate:82,status:70,progress:72,interview1:64,interview2:64,interview3:64,location:58,updatedAt:82,actions:66});
+Object.assign(APPLICATION_COLUMN_MIN_WIDTHS,{sequence:42,company:110,website:48,applyDate:68,status:54,progress:52,interview1:50,interview2:50,interview3:50,location:46,updatedAt:68,actions:60});
+
+const APPLICATION_V347_MIGRATION_KEY="autumn_recruitment_application_v347_widths";
+function migrateApplicationColumnWidthsV347(){
+ if(localStorage.getItem(APPLICATION_V347_MIGRATION_KEY)==="1")return;
+ const widths=loadApplicationColumnWidths();
+ Object.assign(widths,{sequence:46,company:150,website:72,applyDate:82,status:70,progress:72,interview1:64,interview2:64,interview3:64,location:58,updatedAt:82,actions:66});
+ saveApplicationColumnWidths(widths);
+ localStorage.setItem(APPLICATION_V347_MIGRATION_KEY,"1");
+}
+migrateApplicationColumnWidthsV347();
+
+function applyApplicationColumnWidthsV347(){
+ const root=$("#applicationsTable");
+ const table=root?.querySelector("table");
+ if(!root||!table)return;
+ const widths=loadApplicationColumnWidths();
+ let total=0;
+ APPLICATION_COLUMN_KEYS.forEach((key,index)=>{
+   const width=Math.max(APPLICATION_COLUMN_MIN_WIDTHS[key]||40,Number(widths[key])||APPLICATION_COLUMN_DEFAULT_WIDTHS[key]||80);
+   total+=width;
+   table.querySelectorAll("tr").forEach(row=>{
+     const cell=row.children[index];
+     if(!cell)return;
+     cell.style.setProperty("width",`${width}px`,"important");
+     cell.style.setProperty("min-width",`${width}px`,"important");
+     cell.style.setProperty("max-width",`${width}px`,"important");
+   });
+ });
+ table.style.setProperty("width",`${total}px`,"important");
+ table.style.setProperty("min-width",`${total}px`,"important");
+ table.style.setProperty("max-width",`${total}px`,"important");
+ const sw=Math.max(APPLICATION_COLUMN_MIN_WIDTHS.sequence,Number(widths.sequence)||APPLICATION_COLUMN_DEFAULT_WIDTHS.sequence);
+ const cw=Math.max(APPLICATION_COLUMN_MIN_WIDTHS.company,Number(widths.company)||APPLICATION_COLUMN_DEFAULT_WIDTHS.company);
+ const aw=Math.max(APPLICATION_COLUMN_MIN_WIDTHS.actions,Number(widths.actions)||APPLICATION_COLUMN_DEFAULT_WIDTHS.actions);
+ root.style.setProperty("--app-seq-width",`${sw}px`);
+ root.style.setProperty("--app-company-width",`${cw}px`);
+ root.style.setProperty("--app-action-width",`${aw}px`);
+}
+
 function normalizeInterviewStatusValue(value){ return ["pending","interviewed","passed","failed"].includes(value) ? value : ""; }
 function explicitInterviewStatusLabel(value,round){ const v=normalizeInterviewStatusValue(value); if(!v)return ""; return v==="failed"?`${round}面挂`:(INTERVIEW_STATUS_LABELS[v]||""); }
 function getApplicationInterviewDisplay(item,round){ const v=normalizeInterviewStatusValue(item[`interview${round}Status`]); if(v)return explicitInterviewStatusLabel(v,round); if(typeof getInterviewStage==="function"&&typeof normalizeInterviewSituation==="function")return normalizeInterviewSituation(getInterviewStage(item,round),round); return "—"; }
@@ -1198,10 +1240,10 @@ function applyApplicationColumnWidths(){
  root.style.setProperty("--app-seq-width",`${sw}px`);root.style.setProperty("--app-company-width",`${cw}px`);root.style.setProperty("--app-action-width",`${aw}px`);
 }
 function installApplicationColumnResizers(){
- const root=$("#applicationsTable"),table=root?.querySelector("table");if(!root||!table)return;applyApplicationColumnWidths();
+ const root=$("#applicationsTable"),table=root?.querySelector("table");if(!root||!table)return;applyApplicationColumnWidthsV347();
  table.querySelectorAll("thead th").forEach((th,index)=>{if(th.querySelector(".column-resizer"))return;const key=APPLICATION_COLUMN_KEYS[index];if(!key)return;const h=document.createElement("span");h.className="column-resizer";h.title="拖动调整列宽";h.setAttribute("aria-hidden","true");th.appendChild(h);
  h.addEventListener("pointerdown",event=>{event.preventDefault();event.stopPropagation();const sx=event.clientX,sw=th.getBoundingClientRect().width,min=APPLICATION_COLUMN_MIN_WIDTHS[key]||60,widths=loadApplicationColumnWidths();h.classList.add("is-resizing");root.classList.add("is-column-resizing");h.setPointerCapture?.(event.pointerId);
- const move=e=>{widths[key]=Math.max(min,Math.round(sw+e.clientX-sx));saveApplicationColumnWidths(widths);applyApplicationColumnWidths();}; const up=e=>{h.classList.remove("is-resizing");root.classList.remove("is-column-resizing");h.releasePointerCapture?.(e.pointerId);h.removeEventListener("pointermove",move);h.removeEventListener("pointerup",up);h.removeEventListener("pointercancel",up);};h.addEventListener("pointermove",move);h.addEventListener("pointerup",up);h.addEventListener("pointercancel",up);});
+ const move=e=>{widths[key]=Math.max(min,Math.round(sw+e.clientX-sx));saveApplicationColumnWidths(widths);applyApplicationColumnWidthsV347();}; const up=e=>{h.classList.remove("is-resizing");root.classList.remove("is-column-resizing");h.releasePointerCapture?.(e.pointerId);h.removeEventListener("pointermove",move);h.removeEventListener("pointerup",up);h.removeEventListener("pointercancel",up);};h.addEventListener("pointermove",move);h.addEventListener("pointerup",up);h.addEventListener("pointercancel",up);});
  });
 }
 function initApplicationTableEnhancements(){
