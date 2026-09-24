@@ -817,6 +817,28 @@ function csvEscape(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+/* V3.4.8 enhancements */
+function deleteApplicationFromFormV348(){
+ const id=$("#applicationId")?.value||"";
+ if(!id)return;
+ const item=getApplicationById(id);
+ if(!item){showToast("未找到这条投递");return;}
+ const label=[item.company,item.role].filter(Boolean).join(" / ");
+ if(!confirm(`确定删除投递“${label||"未命名投递"}”吗？\n\n删除后会同步到云端。`))return;
+ data.applications=data.applications.filter(app=>app.id!==id);
+ data.reminders=data.reminders.map(reminder=>reminder.applicationId===id?{...reminder,applicationId:""}:reminder);
+ data.questions=data.questions.map(question=>question.companyApplicationId===id?{...question,companyApplicationId:""}:question);
+ closeModal("applicationModal");
+ closeDrawer();
+ saveData();
+ showToast("投递已删除");
+}
+function syncApplicationDeleteButtonV348(){
+ const btn=$("#deleteApplicationBtn"),id=$("#applicationId")?.value||"";
+ if(btn)btn.classList.toggle("hidden",!id);
+}
+
+
 /* ========== 静态选项与事件 ========== */
 
 function fillStaticSelects() {
@@ -869,6 +891,10 @@ function bindEvents() {
   $("#applicationImportMode").addEventListener("change", renderApplicationImportPreview);
   $("#confirmApplicationImportBtn").addEventListener("click", confirmApplicationImport);
   $("#saveApplicationBtn").addEventListener("click", saveApplicationFromForm);
+$("#deleteApplicationBtn").addEventListener("click", deleteApplicationFromFormV348);
+const applicationModalV348=$("#applicationModal");
+if(applicationModalV348)new MutationObserver(syncApplicationDeleteButtonV348).observe(applicationModalV348,{attributes:true,attributeFilter:["class"]});
+setTimeout(()=>syncApplicationDeleteButtonV348(),0);
 
   $("#applicationSearch").addEventListener("input", resetApplicationPageAndRender);
   $("#applicationStatusFilter").addEventListener("change", resetApplicationPageAndRender);
@@ -1026,9 +1052,8 @@ function renderAll() {
 
 function renderDashboard() {
   const total = data.applications.length;
-  const active = data.applications.filter(item =>
-    ["test", "interview", "hr"].includes(item.status)
-  ).length;
+  const testCount = data.applications.filter(item => item.status === "test").length;
+  const interviewCount = data.applications.filter(item => ["interview", "hr"].includes(item.status)).length;
   const offers = data.applications.filter(item => item.status === "offer").length;
   const high = data.applications.filter(item => item.priority === "high").length;
   const pending = data.reminders.filter(item => !item.done).length;
@@ -1036,7 +1061,8 @@ function renderDashboard() {
 
   const cards = [
     ["总投递", total, "全部岗位"],
-    ["进行中", active, "笔试 / 面试 / HR"],
+    ["笔试 / 测评", testCount, "笔试、测评阶段"],
+    ["面试 / HR", interviewCount, "面试、HR 阶段"],
     ["Offer", offers, "已拿到 Offer"],
     ["高优先级", high, "重点关注"],
     ["待办提醒", pending, "未完成事项"],

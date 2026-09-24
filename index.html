@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="秋招 Tracker V3：投递、面试、日历、复盘、自动云同步和邮件提醒。" />
-  <title>秋招 Tracker V3</title>
-  <link rel="stylesheet" href="./styles.css?v=3.4.7" />
+  <meta name="description" content="秋招 Tracker V3.4.8：投递、面试、日历、复盘、自动云同步和邮件提醒。" />
+  <title>秋招 Tracker V3.4.8</title>
+  <link rel="stylesheet" href="./styles.css?v=3.4.8" />
 </head>
 <body>
   <!-- 登录页 -->
@@ -13,7 +13,7 @@
     <div class="auth-card">
       <div class="auth-logo">🍂</div>
       <div class="eyebrow">AUTUMN RECRUITMENT</div>
-      <h1>秋招 Tracker <span class="brand-version-v347">V3.4.7</span></h1>
+      <h1>秋招 Tracker <span class="brand-version-v347">V3.4.8</span></h1>
       <p class="auth-subtitle">登录后自动同步你的投递、日历和面试复盘。</p>
 
       <div class="config-error hidden" id="configError">
@@ -55,7 +55,7 @@
         <div class="brand-wrap">
           <div class="brand-icon">🍂</div>
           <div>
-            <h1>秋招 Tracker <span class="version-tag">V3</span></h1>
+            <h1>秋招 Tracker <span class="version-tag">V3.4.8</span></h1>
             <p>投递 · 日历 · 面试题库 · 自动云同步 · 邮件提醒</p>
           </div>
         </div>
@@ -91,7 +91,7 @@
 
       <main>
         <section class="view active" id="view-dashboard">
-          <div class="stats-grid" id="dashboardStats"></div>
+          <div class="stats-grid v348-seven-stats" id="dashboardStats"></div>
 
           <div class="dashboard-grid">
             <section class="panel wide">
@@ -342,7 +342,7 @@
       <label class="full">岗位链接<input class="field" id="jobUrl" type="url" placeholder="https://..." /></label>
       <label class="full">备注<textarea class="field-textarea" id="note"></textarea></label>
     </form></div>
-    <div class="modal-footer"><button class="btn" data-close="applicationModal">取消</button><button class="btn btn-primary" id="saveApplicationBtn">保存</button></div>
+    <div class="modal-footer application-modal-footer-v348"><button class="btn btn-danger hidden" id="deleteApplicationBtn" type="button">删除投递</button><div class="application-modal-actions-v348"><button class="btn" data-close="applicationModal">取消</button><button class="btn btn-primary" id="saveApplicationBtn">保存</button></div></div>
   </div></div>
 
   <!-- 流程弹窗 -->
@@ -522,6 +522,6 @@
   <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.4.0/dist/docx-preview.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="./config.js?v=3.4.0"></script>
-  <script type="module" src="./app.js?v=3.4.7"></script>
+  <script type="module" src="./app.js?v=3.4.8"></script>
 </body>
 </html>
