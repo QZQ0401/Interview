@@ -238,3 +238,22 @@
 
 /* 顶部真实版本号 */
 .brand-version-v347{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;padding:3px 7px;border-radius:999px;background:#e8f3ed;color:#1f6f4a;font-size:11px;font-weight:800;line-height:1;vertical-align:middle;white-space:nowrap}
+
+/* V3.4.8 enhancements */
+.tabs .tab{font-size:13px!important;font-weight:700!important;padding:10px 15px!important}
+.version-tag,.auth-card h1 span{font-size:11px!important;font-weight:800!important;letter-spacing:.02em}
+#view-dashboard .stat-label{font-size:12px!important;font-weight:650}
+#view-dashboard .stat-value{font-size:30px!important;font-weight:800!important}
+#view-dashboard .stat-sub{font-size:11px!important}
+#view-dashboard .panel-head h2{font-size:18px!important}
+#view-dashboard .panel-head p{font-size:12px!important}
+#view-dashboard .section-title{font-size:15px!important;font-weight:750}
+#view-dashboard .legend-item,#view-dashboard .progress-head,#view-dashboard .bar-row{font-size:12px!important}
+#view-dashboard .donut-center strong{font-size:30px!important}
+#view-dashboard .donut-center span,#view-dashboard .trend-count,#view-dashboard .trend-label{font-size:11px!important}
+#view-dashboard .stats-grid.v348-seven-stats{grid-template-columns:repeat(7,minmax(0,1fr))!important}
+@media(max-width:1180px){#view-dashboard .stats-grid.v348-seven-stats{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+@media(max-width:760px){#view-dashboard .stats-grid.v348-seven-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+.application-modal-footer-v348{justify-content:space-between!important}
+.application-modal-actions-v348{display:flex;gap:8px;align-items:center}
+#deleteApplicationBtn{margin-right:auto}
