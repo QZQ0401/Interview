@@ -1384,6 +1384,36 @@ function applicationInterviewMatchesV349(item,filter){
   return true;
 }
 
+/* V3.4.10 */
+function getApplicationInterviewHistoryV3410(item){
+ const values=[1,2,3].map(round=>getApplicationInterviewDisplay(item,round));
+ const actual=values.some(v=>v==="已面试"||v==="已通过"||/^[一二三]面挂$/.test(v));
+ return {
+  values,
+  hasActualInterview:actual||item.status==="hr"||item.status==="offer",
+  hasPending:values.includes("待面试"),
+  hasFailure:values.some(v=>/^[一二三]面挂$/.test(v)),
+  hasPassed:values.includes("已通过"),
+  hasInterviewed:values.includes("已面试")
+ };
+}
+function applicationInterviewMatchesV3410(item,filter){
+ if(!filter)return true;
+ const h=getApplicationInterviewHistoryV3410(item);
+ if(filter==="ever")return h.hasActualInterview;
+ if(filter==="never")return !h.hasActualInterview;
+ if(filter==="pending")return h.hasPending;
+ if(filter==="active")return h.hasPending||h.hasInterviewed;
+ if(filter==="passed")return h.hasPassed;
+ if(filter==="failed")return h.hasFailure;
+ if(filter==="interviewed")return h.hasInterviewed;
+ if(filter==="round1_failed")return h.values.includes("一面挂");
+ if(filter==="round2_failed")return h.values.includes("二面挂");
+ if(filter==="round3_failed")return h.values.includes("三面挂");
+ return true;
+}
+
+
 function buildApplicationPageNumbers(currentPage, totalPages) {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -1428,7 +1458,7 @@ function getFilteredApplications() {
       return (
         (!keyword || text.includes(keyword)) &&
         (!status || item.status === status) &&
-        applicationInterviewMatchesV349(item, interviewFilter) &&
+        applicationInterviewMatchesV3410(item, interviewFilter) &&
         (!priority || item.priority === priority) &&
         (!location || item.location === location)
       );
