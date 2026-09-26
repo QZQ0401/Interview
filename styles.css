@@ -309,3 +309,187 @@
 .resume-preview-area,.resume-empty,.resume-viewer{min-height:650px!important}.resume-empty{gap:12px!important}.resume-empty-icon{font-size:58px!important}.resume-empty strong{font-size:20px!important}.resume-empty p{max-width:560px!important;font-size:13px!important;line-height:1.75!important}
 .resume-viewer-toolbar{padding:15px 18px!important}.resume-viewer-title strong{font-size:15px!important}.resume-viewer-title span{font-size:11px!important}.resume-pages{min-height:560px!important;padding:26px!important}.resume-page figcaption{font-size:11px!important}.resume-privacy-note{padding:14px 16px!important}.resume-privacy-note strong{font-size:12px!important}.resume-privacy-note p{font-size:11px!important}
 @media(max-width:820px){.resume-layout{grid-template-columns:1fr!important}.resume-preview-area,.resume-empty,.resume-viewer{min-height:520px!important}}
+
+/* ========== V3.4.12 UI polish ========== */
+/* =========================================================
+   V3.4.12 UI polish
+   - fuller navigation
+   - larger section typography
+   - colorful dashboard cards / bars
+   - fuller "秋招进度" typography
+   ========================================================= */
+
+/* 1) 顶部菜单：更饱满、更醒目，同时保持五栏横跨 */
+.tabs{
+  min-height:64px!important;
+  padding:7px 10px!important;
+  gap:10px!important;
+  align-items:stretch!important;
+}
+.tabs .tab{
+  flex:1 1 0!important;
+  min-width:0!important;
+  min-height:48px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:11px 18px!important;
+  font-size:16px!important;
+  font-weight:800!important;
+  line-height:1.15!important;
+  letter-spacing:.015em!important;
+  border-radius:12px!important;
+}
+.tabs .tab.active{
+  box-shadow:0 7px 18px rgba(47,111,78,.18)!important;
+}
+@media(max-width:760px){
+  .tabs{overflow-x:auto!important;justify-content:flex-start!important}
+  .tabs .tab{flex:0 0 150px!important;font-size:15px!important}
+}
+
+/* 2) 投递管理 / 日历提醒 / 面试题库：标题和说明放大 */
+#view-applications .panel-head h2,
+#view-calendar .panel-head h2,
+#view-questions .panel-head h2{
+  font-size:21px!important;
+  font-weight:850!important;
+  line-height:1.2!important;
+  letter-spacing:-.015em!important;
+}
+#view-applications .panel-head p,
+#view-calendar .panel-head p,
+#view-questions .panel-head p{
+  margin-top:6px!important;
+  font-size:13px!important;
+  font-weight:520!important;
+  line-height:1.5!important;
+}
+#view-calendar .section-title,
+#view-questions .section-title{
+  font-size:16px!important;
+  font-weight:800!important;
+}
+
+/* 日历内部文字也同步提升，避免只放大标题 */
+#view-calendar .email-info strong{font-size:13px!important;font-weight:800!important}
+#view-calendar .email-info p{font-size:11.5px!important;line-height:1.6!important}
+#view-calendar .calendar-toolbar h3{font-size:17px!important;font-weight:800!important}
+#view-calendar .calendar-weekdays div{font-size:11.5px!important;font-weight:700!important}
+#view-calendar .calendar-day{font-size:11px!important}
+#view-calendar .calendar-event{font-size:10px!important}
+
+/* 题库列表文字更易读 */
+#view-questions .question-module-chip{font-size:11px!important;font-weight:700!important}
+#view-questions .question-module-chip strong{font-size:10px!important}
+#view-questions .question-card .question-title{font-size:15px!important;font-weight:760!important}
+#view-questions .question-preview{font-size:12px!important}
+#view-questions .question-list-meta{font-size:11px!important}
+
+/* 3) Dashboard：整体更饱满 */
+#view-dashboard .stat-card{
+  min-height:122px!important;
+  padding:18px 17px!important;
+  border-width:1px!important;
+  box-shadow:0 12px 28px rgba(35,58,45,.08)!important;
+  position:relative!important;
+  overflow:hidden!important;
+}
+#view-dashboard .stat-card::after{
+  content:""!important;
+  position:absolute!important;
+  right:-20px!important;
+  top:-28px!important;
+  width:88px!important;
+  height:88px!important;
+  border-radius:50%!important;
+  background:currentColor!important;
+  opacity:.055!important;
+}
+#view-dashboard .stat-label{font-size:14px!important;font-weight:800!important;line-height:1.25!important}
+#view-dashboard .stat-value{font-size:34px!important;font-weight:850!important;line-height:1.08!important;margin-top:9px!important}
+#view-dashboard .stat-sub{font-size:12px!important;font-weight:560!important;line-height:1.35!important;margin-top:6px!important}
+
+/* 七张统计卡分别配色：与饼图的多色视觉语言一致 */
+#view-dashboard .stat-card:nth-child(1){background:linear-gradient(145deg,#f5f9ff,#eaf3ff)!important;border-color:#d9e8ff!important;color:#245fb5!important}
+#view-dashboard .stat-card:nth-child(2){background:linear-gradient(145deg,#fbf7ff,#f1eaff)!important;border-color:#e6d9ff!important;color:#6d43c5!important}
+#view-dashboard .stat-card:nth-child(3){background:linear-gradient(145deg,#fffaf0,#fff1d6)!important;border-color:#f6e2b6!important;color:#a56800!important}
+#view-dashboard .stat-card:nth-child(4){background:linear-gradient(145deg,#f4fbf6,#e5f6ea)!important;border-color:#d4ecd9!important;color:#18783c!important}
+#view-dashboard .stat-card:nth-child(5){background:linear-gradient(145deg,#fff7f8,#ffe9ed)!important;border-color:#f6d9df!important;color:#b23a50!important}
+#view-dashboard .stat-card:nth-child(6){background:linear-gradient(145deg,#fff9f4,#ffecdf)!important;border-color:#f4ddcd!important;color:#b85d21!important}
+#view-dashboard .stat-card:nth-child(7){background:linear-gradient(145deg,#f7f6ff,#ebeaff)!important;border-color:#dddcff!important;color:#4d4cc4!important}
+#view-dashboard .stat-card .stat-value{color:#13231a!important}
+#view-dashboard .stat-card .stat-sub{color:#5f6c64!important}
+
+/* 秋招进度标题、说明、饼图图例、漏斗都加大加粗 */
+#view-dashboard .panel-head h2{
+  font-size:22px!important;
+  font-weight:850!important;
+  letter-spacing:-.02em!important;
+}
+#view-dashboard .panel-head p{
+  font-size:13px!important;
+  font-weight:550!important;
+  line-height:1.5!important;
+}
+#view-dashboard .section-title{
+  font-size:18px!important;
+  font-weight:850!important;
+  margin-bottom:14px!important;
+}
+#view-dashboard .legend{gap:11px!important}
+#view-dashboard .legend-item{
+  font-size:13px!important;
+  font-weight:650!important;
+  line-height:1.35!important;
+}
+#view-dashboard .legend-item strong{font-size:13px!important;font-weight:850!important}
+#view-dashboard .legend-dot{width:10px!important;height:10px!important;border-radius:3px!important}
+#view-dashboard .donut-center strong{font-size:34px!important;font-weight:850!important}
+#view-dashboard .donut-center span{font-size:12px!important;font-weight:650!important}
+#view-dashboard .progress-list{gap:12px!important}
+#view-dashboard .progress-head{
+  font-size:13px!important;
+  font-weight:680!important;
+}
+#view-dashboard .progress-head span:last-child{font-weight:800!important}
+#view-dashboard .progress-track,
+#view-dashboard .bar-track{height:10px!important}
+
+/* 招聘漏斗：每一层独立颜色 */
+#view-dashboard #funnelList .progress-row:nth-child(1) .progress-bar{background:linear-gradient(90deg,#4f83e8,#6aa0ff)!important}
+#view-dashboard #funnelList .progress-row:nth-child(2) .progress-bar{background:linear-gradient(90deg,#7c4fe0,#9a70ef)!important}
+#view-dashboard #funnelList .progress-row:nth-child(3) .progress-bar{background:linear-gradient(90deg,#e0a126,#f0bb4c)!important}
+#view-dashboard #funnelList .progress-row:nth-child(4) .progress-bar{background:linear-gradient(90deg,#ed762f,#f49a61)!important}
+#view-dashboard #funnelList .progress-row:nth-child(5) .progress-bar{background:linear-gradient(90deg,#2c9a58,#54b879)!important}
+
+/* 公司优先级：高/中/低三种颜色 */
+#view-dashboard #priorityChart .bar-row{font-size:13px!important;font-weight:650!important}
+#view-dashboard #priorityChart .bar-row strong{font-size:13px!important;font-weight:850!important}
+#view-dashboard #priorityChart .bar-row:nth-child(1) .bar-fill{background:linear-gradient(90deg,#e55363,#f06f7c)!important}
+#view-dashboard #priorityChart .bar-row:nth-child(2) .bar-fill{background:linear-gradient(90deg,#e2a324,#f0bd4c)!important}
+#view-dashboard #priorityChart .bar-row:nth-child(3) .bar-fill{background:linear-gradient(90deg,#2f8b55,#53aa73)!important}
+
+/* 最近趋势柱也采用多色，避免整页只有绿色 */
+#view-dashboard #trendChart .trend-col:nth-child(6n+1) .trend-bar{background:linear-gradient(#6aa0ff,#4f83e8)!important}
+#view-dashboard #trendChart .trend-col:nth-child(6n+2) .trend-bar{background:linear-gradient(#9a70ef,#7c4fe0)!important}
+#view-dashboard #trendChart .trend-col:nth-child(6n+3) .trend-bar{background:linear-gradient(#f0bb4c,#e0a126)!important}
+#view-dashboard #trendChart .trend-col:nth-child(6n+4) .trend-bar{background:linear-gradient(#f49a61,#ed762f)!important}
+#view-dashboard #trendChart .trend-col:nth-child(6n+5) .trend-bar{background:linear-gradient(#ef7b87,#d95161)!important}
+#view-dashboard #trendChart .trend-col:nth-child(6n+6) .trend-bar{background:linear-gradient(#54b879,#2c9a58)!important}
+#view-dashboard .trend-count{font-size:12px!important;font-weight:800!important}
+#view-dashboard .trend-label{font-size:11.5px!important;font-weight:650!important}
+
+/* Dashboard 小列表也同步放大 */
+#view-dashboard .mini-item-title{font-size:12px!important;font-weight:800!important}
+#view-dashboard .mini-item-meta{font-size:11px!important}
+#view-dashboard #dashboardUpcoming.mini-list>.muted{font-size:12px!important}
+
+/* 宽屏保持 7 格；空间不足时自然换行 */
+@media(max-width:1180px){
+  #view-dashboard .stat-value{font-size:31px!important}
+}
+@media(max-width:650px){
+  #view-dashboard .panel-head h2{font-size:20px!important}
+  #view-dashboard .overview-grid{gap:20px!important}
+}
