@@ -1342,9 +1342,9 @@ function interviewSituationClass(value) {
 /* 当前进度：由总体状态 + 三轮面试状态自动推导。
    状态看“大阶段”，当前进度看“具体走到哪一步”。 */
 function deriveApplicationProgressV349(item){
-  const s1=getApplicationInterviewDisplay(item,1);
-  const s2=getApplicationInterviewDisplay(item,2);
-  const s3=getApplicationInterviewDisplay(item,3);
+  const s1=getApplicationInterviewDisplayV3411(item,1);
+  const s2=getApplicationInterviewDisplayV3411(item,2);
+  const s3=getApplicationInterviewDisplayV3411(item,3);
   const situations=[s1,s2,s3];
 
   if(item.status==="offer") return "Offer";
@@ -1373,7 +1373,7 @@ function deriveApplicationProgressV349(item){
 /* 面试情况筛选使用表格中实际显示的三轮状态，因此兼容显式状态和旧 stages。 */
 function applicationInterviewMatchesV349(item,filter){
   if(!filter)return true;
-  const values=[1,2,3].map(round=>getApplicationInterviewDisplay(item,round));
+  const values=[1,2,3].map(round=>getApplicationInterviewDisplayV3411(item,round));
   if(filter==="failed") return values.some(v=>/^[一二三]面挂$/.test(v));
   if(filter==="passed") return values.includes("已通过");
   if(filter==="interviewed") return values.includes("已面试");
@@ -1386,7 +1386,7 @@ function applicationInterviewMatchesV349(item,filter){
 
 /* V3.4.10 */
 function getApplicationInterviewHistoryV3410(item){
- const values=[1,2,3].map(round=>getApplicationInterviewDisplay(item,round));
+ const values=[1,2,3].map(round=>getApplicationInterviewDisplayV3411(item,round));
  const actual=values.some(v=>v==="已面试"||v==="已通过"||/^[一二三]面挂$/.test(v));
  return {
   values,
@@ -1412,6 +1412,13 @@ function applicationInterviewMatchesV3410(item,filter){
  if(filter==="round3_failed")return h.values.includes("三面挂");
  return true;
 }
+
+
+/* V3.4.11 */
+function interviewRoundChineseV3411(round){return ({1:"一",2:"二",3:"三"})[Number(round)]||String(round);}
+function explicitInterviewStatusLabelV3411(value,round){const v=normalizeInterviewStatusValue(value);if(!v)return "";return v==="failed"?`${interviewRoundChineseV3411(round)}面挂`:(INTERVIEW_STATUS_LABELS[v]||"");}
+function normalizeInterviewSituationV3411(stage,round){if(!stage)return "—";const text=`${stage.name||""} ${stage.result||""} ${stage.notes||""}`.toLowerCase();if(/(挂|未通过|不通过|淘汰|拒绝|fail|failed)/i.test(text))return `${interviewRoundChineseV3411(round)}面挂`;if(/(通过|pass|passed)/i.test(text))return "已通过";if(/(已面试|已面|面试完成|已完成|完成面试|面完)/i.test(text))return "已面试";return "待面试";}
+function getApplicationInterviewDisplayV3411(item,round){const v=normalizeInterviewStatusValue(item[`interview${round}Status`]);if(v)return explicitInterviewStatusLabelV3411(v,round);if(typeof getInterviewStage==="function")return normalizeInterviewSituationV3411(getInterviewStage(item,round),round);return "—";}
 
 
 function buildApplicationPageNumbers(currentPage, totalPages) {
@@ -1512,9 +1519,9 @@ function renderApplications() {
         ${pageRows.map((item, pageIndex) => {
           const latestStage = [...(item.stages || [])]
             .sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0];
-          const firstInterview = getApplicationInterviewDisplay(item, 1);
-          const secondInterview = getApplicationInterviewDisplay(item, 2);
-          const thirdInterview = getApplicationInterviewDisplay(item, 3);
+          const firstInterview = getApplicationInterviewDisplayV3411(item,1);
+          const secondInterview = getApplicationInterviewDisplayV3411(item,2);
+          const thirdInterview = getApplicationInterviewDisplayV3411(item,3);
           const jobUrl = String(item.jobUrl || "").trim();
           const safeJobUrl = /^https?:\/\//i.test(jobUrl) ? jobUrl : "";
           const sequence = startIndex + pageIndex + 1;
