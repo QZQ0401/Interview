@@ -493,3 +493,83 @@
   #view-dashboard .panel-head h2{font-size:20px!important}
   #view-dashboard .overview-grid{gap:20px!important}
 }
+
+/* ===== V3.4.13 UI START ===== */
+/* 投递状态颜色：面试中 / HR 面统一绿色；已拒橙色；已终止红色。 */
+.status-interview,
+.status-hr{
+  color:#15803d!important;
+  background:#ecfdf3!important;
+}
+.status-rejected{
+  color:#c2410c!important;
+  background:#fff7ed!important;
+}
+.status-terminated{
+  color:#b91c1c!important;
+  background:#fef2f2!important;
+}
+
+/* V3.4.13 看板七张统计卡：删除 Offer 率后，新增“已面试企业 / 面试流程中”。 */
+#view-dashboard .stat-card-v3413{
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+  border:1px solid var(--v3413-card-border,#dbe7df)!important;
+  background:var(--v3413-card-bg,#fff)!important;
+}
+#view-dashboard .stat-card-v3413::after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  width:92px;
+  height:92px;
+  right:-22px;
+  top:-28px;
+  border-radius:50%;
+  background:var(--v3413-card-orb,rgba(79,131,232,.08));
+  pointer-events:none;
+}
+#view-dashboard .stat-card-v3413-total{
+  --v3413-card-bg:#eef5ff;
+  --v3413-card-border:#d8e7ff;
+  --v3413-card-orb:rgba(79,131,232,.10);
+}
+#view-dashboard .stat-card-v3413-test{
+  --v3413-card-bg:#f4edff;
+  --v3413-card-border:#e6d7ff;
+  --v3413-card-orb:rgba(139,92,246,.09);
+}
+#view-dashboard .stat-card-v3413-interviewed{
+  --v3413-card-bg:#eefaf6;
+  --v3413-card-border:#d5eee4;
+  --v3413-card-orb:rgba(47,157,112,.10);
+}
+#view-dashboard .stat-card-v3413-ongoing{
+  --v3413-card-bg:#eaf8ef;
+  --v3413-card-border:#d1ead9;
+  --v3413-card-orb:rgba(53,164,99,.10);
+}
+#view-dashboard .stat-card-v3413-offer{
+  --v3413-card-bg:#effaf3;
+  --v3413-card-border:#d4eddc;
+  --v3413-card-orb:rgba(31,143,95,.10);
+}
+#view-dashboard .stat-card-v3413-priority{
+  --v3413-card-bg:#fff0f3;
+  --v3413-card-border:#ffd9e1;
+  --v3413-card-orb:rgba(223,91,89,.08);
+}
+#view-dashboard .stat-card-v3413-reminder{
+  --v3413-card-bg:#fff3e9;
+  --v3413-card-border:#f6dcc6;
+  --v3413-card-orb:rgba(232,121,59,.09);
+}
+
+#view-dashboard .progress-row-v3413 .progress-track{
+  background:#edf1ef!important;
+}
+#view-dashboard .progress-row-v3413 .progress-bar{
+  transition:width .22s ease;
+}
+/* ===== V3.4.13 UI END ===== */
