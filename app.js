@@ -1152,33 +1152,57 @@ function v3413DonutBucket(item) {
 
 /* ===== V3.4.13 HELPERS END ===== */
 
+/* ========== V3.4.14 dashboard metric helpers ========== */
+function v3414InterviewRoundValues(item) {
+  return [item?.interview1Status, item?.interview2Status, item?.interview3Status].filter(Boolean);
+}
+
+function v3414HasActualInterview(item) {
+  const rounds = v3414InterviewRoundValues(item);
+  if (rounds.some(v => ["interviewed", "passed", "failed"].includes(v))) return true;
+  if (["hr", "offer"].includes(item?.status)) return true;
+  return (item?.stages || []).some(stage => {
+    const text = `${stage?.name || ""} ${stage?.result || ""}`;
+    const looksInterview = /(ai\s*面|ai面|一面|二面|三面|面试|hr)/i.test(text);
+    const pendingOnly = /(待面试|待安排|未开始)/i.test(text) && !/(已面试|通过|挂|未通过|拒)/i.test(text);
+    return looksInterview && !pendingOnly;
+  });
+}
+
+function v3414HasEnteredInterview(item) {
+  const rounds = v3414InterviewRoundValues(item);
+  if (rounds.some(v => ["pending", "interviewed", "passed", "failed"].includes(v))) return true;
+  if (["interview", "hr", "offer"].includes(item?.status)) return true;
+  return (item?.stages || []).some(stage =>
+    /(ai\s*面|ai面|一面|二面|三面|面试|hr)/i.test(`${stage?.name || ""} ${stage?.result || ""}`)
+  );
+}
+
 function renderDashboard() {
   const total = data.applications.length;
   const testCount = data.applications.filter(item => item.status === "test").length;
-  const interviewedCompanies = data.applications.filter(v3413HasActualInterview).length;
-  const interviewFlowCount = data.applications.filter(v3413InInterviewProcess).length;
+  const interviewedCompanies = data.applications.filter(v3414HasActualInterview).length;
+  const interviewInProgress = data.applications.filter(item => ["interview", "hr"].includes(item.status)).length;
   const offers = data.applications.filter(item => item.status === "offer").length;
   const high = data.applications.filter(item => item.priority === "high").length;
   const pending = data.reminders.filter(item => !item.done).length;
 
   const cards = [
-    { label: "总投递", value: total, sub: "全部岗位", tone: "total" },
-    { label: "笔试 / 测评", value: testCount, sub: "当前笔试、测评阶段", tone: "test" },
-    { label: "已面试企业", value: interviewedCompanies, sub: "实际参加过面试", tone: "interviewed" },
-    { label: "面试流程中", value: interviewFlowCount, sub: "当前仍在面试流程", tone: "ongoing" },
-    { label: "Offer", value: offers, sub: "已拿到 Offer", tone: "offer" },
-    { label: "高优先级", value: high, sub: "重点关注", tone: "priority" },
-    { label: "待办提醒", value: pending, sub: "未完成事项", tone: "reminder" }
+    ["总投递", total, "全部岗位"],
+    ["笔试中", testCount, "当前处于笔试阶段"],
+    ["已面试企业", interviewedCompanies, "实际参加过面试"],
+    ["面试流程中", interviewInProgress, "当前仍在面试流程"],
+    ["Offer", offers, "已拿到 Offer"],
+    ["高优先级", high, "重点关注"],
+    ["待办提醒", pending, "未完成事项"]
   ];
 
-  $("#dashboardStats").innerHTML = cards
-    .map(item => `
-      <article class="panel stat-card stat-card-v3413 stat-card-v3413-${item.tone}">
-        <div class="stat-label">${item.label}</div>
-        <div class="stat-value">${item.value}</div>
-        <div class="stat-sub">${item.sub}</div>
-      </article>`)
-    .join("");
+  $("#dashboardStats").innerHTML = cards.map(item => `
+    <article class="panel stat-card">
+      <div class="stat-label">${item[0]}</div>
+      <div class="stat-value">${item[1]}</div>
+      <div class="stat-sub">${item[2]}</div>
+    </article>`).join("");
 
   renderStatusDonut();
   renderFunnel();
@@ -1187,82 +1211,65 @@ function renderDashboard() {
   renderDashboardUpcoming();
 }
 
+
 function renderStatusDonut() {
   const total = data.applications.length;
   $("#donutTotal").textContent = total;
 
-  const definitions = [
-    ["applied", "已投递"],
-    ["test", "进入笔试"],
-    ["enteredInterview", "进入面试"],
-    ["interviewOngoing", "面试中"],
-    ["rejected", "已拒"],
-    ["terminated", "已终止"]
+  const counts = [
+    ["已投递", data.applications.filter(i => !["test","interview","hr","offer","rejected","terminated"].includes(i.status)).length, "#4f83e8"],
+    ["笔试中", data.applications.filter(i => i.status === "test").length, "#8b5cf6"],
+    ["进入面试", data.applications.filter(v3414HasEnteredInterview).length, "#35a463"],
+    ["面试中", data.applications.filter(i => ["interview","hr"].includes(i.status)).length, "#2f9b67"],
+    ["已拒", data.applications.filter(i => i.status === "rejected").length, "#e8793b"],
+    ["已终止", data.applications.filter(i => i.status === "terminated").length, "#df5b59"]
   ];
-
-  const bucketCounts = Object.fromEntries(definitions.map(([key]) => [key, 0]));
-  data.applications.forEach(item => {
-    const bucket = v3413DonutBucket(item);
-    bucketCounts[bucket] = (bucketCounts[bucket] || 0) + 1;
-  });
-
-  const rows = definitions.map(([value, label]) => ({
-    value,
-    label,
-    count: bucketCounts[value] || 0
-  }));
 
   if (!total) {
     $("#statusDonut").style.background = "#e8ece9";
-    $("#statusLegend").innerHTML = rows.map(item => `
-      <div class="legend-item">
-        <div class="legend-name"><span class="legend-dot" style="background:${V3413_DONUT_COLORS[item.value]}"></span>${escapeHtml(item.label)}</div>
-        <strong>0</strong>
-      </div>`).join("");
+    $("#statusLegend").innerHTML = `<div class="muted">暂无投递数据。</div>`;
     return;
   }
 
+  // “进入面试”是累计指标，可能与“面试中”交叉；切片按六项显示值归一化。
+  const metricTotal = counts.reduce((sum, item) => sum + item[1], 0) || 1;
   let cursor = 0;
-  const segments = rows
-    .filter(item => item.count > 0)
-    .map(item => {
-      const start = cursor;
-      cursor += (item.count / total) * 100;
-      return `${V3413_DONUT_COLORS[item.value]} ${start}% ${cursor}%`;
-    });
+  const segments = counts.filter(item => item[1] > 0).map(item => {
+    const start = cursor;
+    cursor += (item[1] / metricTotal) * 100;
+    return `${item[2]} ${start}% ${cursor}%`;
+  });
 
-  $("#statusDonut").style.background = segments.length
-    ? `conic-gradient(${segments.join(",")})`
-    : "#e8ece9";
-
-  $("#statusLegend").innerHTML = rows.map(item => `
+  $("#statusDonut").style.background = segments.length ? `conic-gradient(${segments.join(",")})` : "#e8ece9";
+  $("#statusLegend").innerHTML = counts.map(item => `
     <div class="legend-item">
-      <div class="legend-name"><span class="legend-dot" style="background:${V3413_DONUT_COLORS[item.value]}"></span>${escapeHtml(item.label)}</div>
-      <strong>${item.count}</strong>
+      <div class="legend-name"><span class="legend-dot" style="background:${item[2]}"></span>${escapeHtml(item[0])}</div>
+      <strong>${item[1]}</strong>
     </div>`).join("");
 }
 
+
 function renderFunnel() {
-  const total = data.applications.length;
+  const totalCount = data.applications.length;
+  const total = totalCount || 1;
   const rows = [
-    { key: "applied", label: "已投递", count: total },
-    { key: "test", label: "进入笔试", count: data.applications.filter(v3413HasEnteredTest).length },
-    { key: "enteredInterview", label: "进入面试", count: data.applications.filter(v3413HasEnteredInterview).length },
-    { key: "interviewOngoing", label: "面试中", count: data.applications.filter(v3413InInterviewProcess).length },
-    { key: "offer", label: "Offer", count: data.applications.filter(item => item.status === "offer").length }
+    ["已投递", data.applications.filter(i => i.status !== "preparing").length, "#4f83e8"],
+    ["笔试中", data.applications.filter(i => i.status === "test").length, "#8b5cf6"],
+    ["进入面试", data.applications.filter(v3414HasEnteredInterview).length, "#35a463"],
+    ["面试中", data.applications.filter(i => ["interview","hr"].includes(i.status)).length, "#e6a93b"],
+    ["Offer", data.applications.filter(i => i.status === "offer").length, "#e8798b"]
   ];
 
-  $("#funnelList").innerHTML = rows.map(item => {
-    const percent = total ? Math.round((item.count / total) * 100) : 0;
-    const color = V3413_FUNNEL_COLORS[item.key];
-
+  $("#funnelList").innerHTML = rows.map(([label, count, color]) => {
+    const percent = totalCount ? Math.round((count / total) * 100) : 0;
     return `
-      <div class="progress-row progress-row-v3413">
-        <div class="progress-head"><span>${item.label}</span><span>${item.count} · ${percent}%</span></div>
+      <div class="progress-row">
+        <div class="progress-head"><span>${label}</span><span>${count} · ${percent}%</span></div>
         <div class="progress-track"><div class="progress-bar" style="width:${percent}%;background:${color}"></div></div>
       </div>`;
   }).join("");
 }
+
 
 function renderPriorityChart() {
   const rows = PRIORITY_OPTIONS.map(([value, label]) => ({
